@@ -433,24 +433,63 @@ export default async function adminRoutes(app) {
   });
 
   // ---- Artists ----
-  app.get('/api/admin/artists', editor, async () =>
-    many(`SELECT a.*, count(t.id)::int AS track_count FROM artists a
-          LEFT JOIN tracks t ON t.artist_id = a.id GROUP BY a.id ORDER BY a.name`),
-  );
+  const shapeAdminArtist = (a) => ({ ...a, photo: coverUrl(a.photo_path) });
+
+  app.get('/api/admin/artists', editor, async () => {
+    const rows = await many(`SELECT a.*, count(t.id)::int AS track_count FROM artists a
+          LEFT JOIN tracks t ON t.artist_id = a.id GROUP BY a.id ORDER BY a.name`);
+    return rows.map(shapeAdminArtist);
+  });
+
+  app.post('/api/admin/artists', editor, async (request) => {
+    const b = request.body || {};
+    const name = cleanText(b.name, 120);
+    if (!name) throw httpError(400, 'اكتب اسم الفنان');
+    const exists = await one('SELECT id FROM artists WHERE name = $1', [name]);
+    if (exists) throw httpError(409, 'الفنان ده موجود بالفعل');
+    const a = await one('INSERT INTO artists (name, bio) VALUES ($1, $2) RETURNING *', [name, cleanText(b.bio, 3000)]);
+    return shapeAdminArtist({ ...a, track_count: 0 });
+  });
 
   app.patch('/api/admin/artists/:id', editor, async (request) => {
     const b = request.body || {};
     const a = await one('SELECT * FROM artists WHERE id = $1', [toInt(request.params.id)]);
     if (!a) throw httpError(404, 'غير موجود');
-    return one('UPDATE artists SET name = $2, bio = $3 WHERE id = $1 RETURNING *', [
+    const name = cleanText(b.name, 120) || a.name;
+    if (name !== a.name) {
+      const clash = await one('SELECT id FROM artists WHERE name = $1 AND id <> $2', [name, a.id]);
+      if (clash) throw httpError(409, 'فيه فنان تاني بنفس الاسم');
+    }
+    const updated = await one('UPDATE artists SET name = $2, bio = $3 WHERE id = $1 RETURNING *', [
       a.id,
-      cleanText(b.name, 120) || a.name,
+      name,
       b.bio !== undefined ? cleanText(b.bio, 3000) : a.bio,
     ]);
+    return shapeAdminArtist(updated);
+  });
+
+  app.post('/api/admin/artists/:id/photo', editor, async (request) => {
+    const a = await one('SELECT * FROM artists WHERE id = $1', [toInt(request.params.id)]);
+    if (!a) throw httpError(404, 'غير موجود');
+    const part = await request.file();
+    if (!part) throw httpError(400, 'اختار صورة');
+    const name = await saveUpload(part, 'image');
+    const updated = await one('UPDATE artists SET photo_path = $2 WHERE id = $1 RETURNING *', [a.id, name]);
+    await removeMedia('covers', a.photo_path);
+    return shapeAdminArtist(updated);
+  });
+
+  app.delete('/api/admin/artists/:id/photo', editor, async (request) => {
+    const a = await one('SELECT * FROM artists WHERE id = $1', [toInt(request.params.id)]);
+    if (!a) throw httpError(404, 'غير موجود');
+    await query('UPDATE artists SET photo_path = NULL WHERE id = $1', [a.id]);
+    await removeMedia('covers', a.photo_path);
+    return { ok: true };
   });
 
   app.delete('/api/admin/artists/:id', editor, async (request) => {
-    await query('DELETE FROM artists WHERE id = $1', [toInt(request.params.id)]);
+    const a = await one('DELETE FROM artists WHERE id = $1 RETURNING photo_path', [toInt(request.params.id)]);
+    if (a) await removeMedia('covers', a.photo_path);
     return { ok: true };
   });
 

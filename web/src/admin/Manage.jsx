@@ -796,49 +796,126 @@ export function Users() {
 // ---------- Artists ----------
 export function Artists() {
   const { data, loading, error, reload } = useFetch('/api/admin/artists');
+  const [edit, setEdit] = useState(null);
+  const [q, setQ] = useState('');
+  const [preview, setPreview] = useState(null);
   const save = useSaver(reload);
   if (loading && !data) return <Loading />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
+
+  const close = () => {
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(null);
+    setEdit(null);
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const photo = f.get('photo');
+    const body = { name: f.get('name'), bio: f.get('bio') };
+    const a = await save(() => (edit.id ? api.patch(`/api/admin/artists/${edit.id}`, body) : api.post('/api/admin/artists', body)));
+    if (a && photo && photo.size) {
+      const fd = new FormData();
+      fd.append('file', photo);
+      await save(() => uploadWithProgress(`/api/admin/artists/${a.id}/photo`, fd), 'الصورة اترفعت');
+    }
+    if (a) close();
+  };
+
+  const shown = data.filter((a) => !q.trim() || a.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const missing = data.filter((a) => !a.photo).length;
+
   return (
     <div className="admin-page">
-      <h1>الفنانين</h1>
-      <p className="muted">الفنانين بيتضافوا تلقائيًا من بيانات الملفات أو من تعديل الأغنية.</p>
-      <div className="table-wrap">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>الاسم</th>
-              <th>أغاني</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((a) => (
-              <tr key={a.id}>
-                <td>{a.name}</td>
-                <td>{a.track_count}</td>
-                <td className="nowrap">
+      <div className="admin-head">
+        <h1>الفنانين</h1>
+        <button type="button" className="btn btn-primary" onClick={() => setEdit({})}>
+          <Icon name="plus" /> فنان جديد
+        </button>
+      </div>
+      <p className="muted">
+        الفنانين بيتضافوا لوحدهم من بيانات ملفات الأغاني، أو لما تكتب اسم الفنان في تعديل الأغنية. دوس على أي فنان عشان تضيف
+        صورته ونبذة عنه.
+        {missing ? ` (${missing} من غير صورة)` : ''}
+      </p>
+      <input className="input" placeholder="دوّر على فنان" value={q} onChange={(e) => setQ(e.target.value)} />
+      {!data.length ? <Empty icon="user" title="مفيش فنانين لسه" /> : null}
+      <div className="artist-grid">
+        {shown.map((a) => (
+          <button key={a.id} type="button" className="artist-tile" onClick={() => setEdit(a)}>
+            <Cover src={a.photo} round seed={a.id + 7} />
+            <b>{a.name}</b>
+            <small className="muted">
+              {a.track_count} أغنية {a.photo ? '' : '· من غير صورة'}
+            </small>
+          </button>
+        ))}
+      </div>
+
+      {edit ? (
+        <Modal title={edit.id ? `تعديل ${edit.name}` : 'فنان جديد'} onClose={close}>
+          <form className="form" onSubmit={submit}>
+            <div className="artist-photo-edit">
+              <Cover src={preview || edit.photo} round size={120} seed={(edit.id || 0) + 7} />
+              <div className="artist-photo-actions">
+                <label className="btn btn-ghost btn-small">
+                  {edit.photo || preview ? 'تغيير الصورة' : 'اختار صورة'}
+                  <input
+                    name="photo"
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (preview) URL.revokeObjectURL(preview);
+                      setPreview(file ? URL.createObjectURL(file) : null);
+                    }}
+                  />
+                </label>
+                {edit.photo && !preview ? (
                   <button
                     type="button"
                     className="btn btn-ghost btn-small"
-                    onClick={() => {
-                      const name = window.prompt('الاسم الجديد', a.name);
-                      if (name && name !== a.name) save(() => api.patch(`/api/admin/artists/${a.id}`, { name }));
+                    onClick={async () => {
+                      await save(() => api.del(`/api/admin/artists/${edit.id}/photo`), 'الصورة اتشالت');
+                      setEdit({ ...edit, photo: null });
                     }}
                   >
-                    تعديل الاسم
+                    شيل الصورة
                   </button>
-                  {!a.track_count ? (
-                    <button type="button" className="btn btn-ghost btn-small" onClick={() => save(() => api.del(`/api/admin/artists/${a.id}`), 'اتمسح')}>
-                      حذف
-                    </button>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                ) : null}
+                <small className="muted">صورة مربعة أحسن. هتتقص دايرة وهتتصغر لوحدها.</small>
+              </div>
+            </div>
+            <label>
+              الاسم
+              <input name="name" className="input" defaultValue={edit.name || ''} required maxLength={120} />
+            </label>
+            <label>
+              نبذة (اختياري)
+              <textarea name="bio" className="input" rows={4} defaultValue={edit.bio || ''} maxLength={3000} />
+            </label>
+            <div className="edit-foot">
+              {edit.id && !edit.track_count ? (
+                <button
+                  type="button"
+                  className="btn btn-danger btn-small"
+                  onClick={async () => {
+                    await save(() => api.del(`/api/admin/artists/${edit.id}`), 'اتمسح');
+                    close();
+                  }}
+                >
+                  حذف الفنان
+                </button>
+              ) : (
+                <span />
+              )}
+              <button className="btn btn-primary">حفظ</button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
     </div>
   );
 }

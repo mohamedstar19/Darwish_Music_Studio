@@ -312,6 +312,18 @@ export function WorkCard({ work }) {
   );
 }
 
+export function ArtistCard({ artist }) {
+  return (
+    <Link to={`/artist/${artist.id}`} className="card artist-card">
+      <div className="card-cover round-cover">
+        <Cover src={artist.photo} round seed={artist.id + 7} />
+      </div>
+      <div className="card-title">{artist.name}</div>
+      <div className="card-sub">{artist.trackCount ? `${artist.trackCount} أغنية` : 'فنان'}</div>
+    </Link>
+  );
+}
+
 export function PlaylistCard({ playlist }) {
   const covers = playlist.covers || [];
   return (

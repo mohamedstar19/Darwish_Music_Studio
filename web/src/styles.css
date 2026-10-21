@@ -3063,3 +3063,61 @@ html.synth-bg .auth-card {
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
+
+/* ===== Artists ===== */
+.artist-card {
+  text-align: center;
+}
+
+.round-cover {
+  border-radius: 50%;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+}
+
+.round-cover .cover {
+  border-radius: 50%;
+}
+
+.artist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.artist-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  transition: transform 0.25s, background-color 0.2s;
+}
+
+.artist-tile:hover {
+  background: var(--surface-2);
+  transform: translateY(-3px);
+}
+
+.artist-tile .cover {
+  width: 96px;
+  height: 96px;
+}
+
+.artist-photo-edit {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.artist-photo-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}

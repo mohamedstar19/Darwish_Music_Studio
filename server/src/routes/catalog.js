@@ -131,11 +131,21 @@ export default async function catalogRoutes(app) {
     return { work: shapeWork(w), tracks: shapeTracks(tracks) };
   });
 
+  // Artists that have at least one playable song (for Explore).
+  app.get('/api/artists', async () => {
+    const rows = await many(
+      `SELECT a.id, a.name, a.photo_path, count(t.id)::int AS track_count FROM artists a
+       JOIN tracks t ON t.artist_id = a.id AND ${PLAYABLE}
+       GROUP BY a.id ORDER BY (a.photo_path IS NULL), count(t.id) DESC, a.name LIMIT 200`,
+    );
+    return rows.map((a) => ({ id: a.id, name: a.name, photo: coverUrl(a.photo_path), trackCount: a.track_count }));
+  });
+
   app.get('/api/artists/:id', async (request) => {
     const a = await one('SELECT * FROM artists WHERE id = $1', [toInt(request.params.id)]);
     if (!a) throw httpError(404, 'الفنان غير موجود');
     const tracks = await many(`${TRACK_SELECT} WHERE t.artist_id = $1 AND ${PLAYABLE} ORDER BY t.title`, [a.id]);
-    return { artist: { id: a.id, name: a.name, bio: a.bio }, tracks: shapeTracks(tracks) };
+    return { artist: { id: a.id, name: a.name, bio: a.bio, photo: coverUrl(a.photo_path) }, tracks: shapeTracks(tracks) };
   });
 
   app.get('/api/years', async () => {
@@ -178,7 +188,7 @@ export default async function catalogRoutes(app) {
         [pattern],
       ),
       many(
-        `SELECT a.id, a.name, count(t.id)::int AS track_count FROM artists a
+        `SELECT a.id, a.name, a.photo_path, count(t.id)::int AS track_count FROM artists a
          JOIN tracks t ON t.artist_id = a.id AND ${PLAYABLE}
          WHERE norm_ar(a.name) LIKE $1 GROUP BY a.id LIMIT 20`,
         [pattern],
@@ -187,7 +197,7 @@ export default async function catalogRoutes(app) {
     return {
       tracks: shapeTracks(tracks),
       works: works.map(shapeWork),
-      artists: artists.map((a) => ({ id: a.id, name: a.name, trackCount: a.track_count })),
+      artists: artists.map((a) => ({ id: a.id, name: a.name, photo: coverUrl(a.photo_path), trackCount: a.track_count })),
     };
   });
 

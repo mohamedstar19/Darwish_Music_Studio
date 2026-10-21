@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Empty, ErrorBox, Loading, PageHeader, Section } from '../components/common.jsx';
 import Icon from '../components/Icon.jsx';
-import { Shelf, TrackList, WorkCard } from '../components/Tracks.jsx';
+import { ArtistCard, Shelf, TrackList, WorkCard } from '../components/Tracks.jsx';
 import { useDebounced, useFetch } from '../hooks.js';
 import { usePlayer } from '../state/PlayerContext.jsx';
 
@@ -48,6 +48,7 @@ export function Explore() {
   const cats = useFetch('/api/categories');
   const [kind, setKind] = useState('');
   const works = useFetch(`/api/works${kind ? `?kind=${kind}` : ''}`);
+  const artists = useFetch('/api/artists');
   return (
     <div className="page">
       <h1 className="page-title">استكشف</h1>
@@ -62,6 +63,15 @@ export function Explore() {
           ))}
         </div>
       </Section>
+      {artists.data?.length ? (
+        <Section title="الفنانين">
+          <Shelf>
+            {artists.data.map((a) => (
+              <ArtistCard key={a.id} artist={a} />
+            ))}
+          </Shelf>
+        </Section>
+      ) : null}
       <Section
         title="الأعمال"
         action={
@@ -115,13 +125,11 @@ export function Search() {
       ) : null}
       {data.artists.length ? (
         <Section title="فنانين">
-          <div className="chips">
+          <Shelf>
             {data.artists.map((a) => (
-              <Link key={a.id} to={`/artist/${a.id}`} className="chip">
-                {a.name} <small>({a.trackCount})</small>
-              </Link>
+              <ArtistCard key={a.id} artist={a} />
             ))}
-          </div>
+          </Shelf>
         </Section>
       ) : null}
     </div>
@@ -173,7 +181,7 @@ export function ArtistPage() {
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   return (
     <div className="page">
-      <PageHeader cover={null} round kicker="فنان" title={data.artist.name} subtitle={data.artist.bio}>
+      <PageHeader cover={data.artist.photo} round kicker="فنان" title={data.artist.name} subtitle={data.artist.bio}>
         <PlayAll tracks={data.tracks} />
       </PageHeader>
       <TrackList tracks={data.tracks} />
