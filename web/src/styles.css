@@ -2973,3 +2973,93 @@ input[type='range']:disabled {
     transition: none !important;
   }
 }
+
+/* ===== Synthwave background (dark theme): canvas behind the app, glass on top ===== */
+.synth-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 0;
+  display: block;
+  pointer-events: none;
+}
+
+html.synth-bg .sidebar,
+html.synth-bg .main-col,
+html.synth-bg .auth-card {
+  position: relative;
+  z-index: 1;
+}
+
+html.synth-bg .sidebar {
+  background: rgba(20, 13, 62, 0.62);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(16px) saturate(1.2);
+}
+
+html.synth-bg .topbar {
+  background: rgba(14, 9, 48, 0.4);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+/* A light tint over the content area keeps every text readable while the grid shows through. */
+html.synth-bg .main {
+  background: linear-gradient(180deg, rgba(14, 9, 48, 0.5), rgba(14, 9, 48, 0.3) 70%, rgba(14, 9, 48, 0.42));
+}
+
+html.synth-bg .hero,
+html.synth-bg .station-hero {
+  background-color: rgba(33, 23, 92, 0.5);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+html.synth-bg .hero {
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(34, 196, 255, 0.22), transparent 55%),
+    radial-gradient(circle at 85% 80%, rgba(255, 45, 155, 0.26), transparent 55%);
+}
+
+html.synth-bg .card,
+html.synth-bg .stat,
+html.synth-bg .card-box,
+html.synth-bg .decade-chip,
+html.synth-bg .year-btn:not(.on),
+html.synth-bg .track-list {
+  background-color: rgba(30, 20, 84, 0.66);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+html.synth-bg .card:hover {
+  background-color: rgba(44, 31, 115, 0.8);
+}
+
+html.synth-bg .station-card {
+  background-color: rgba(30, 20, 84, 0.66);
+}
+
+html.synth-bg .track-list {
+  border-radius: 14px;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+html.synth-bg .main h1,
+html.synth-bg .main h2,
+html.synth-bg .section-head {
+  text-shadow: 0 2px 14px rgba(14, 9, 48, 0.85);
+}
+
+html.synth-bg .auth-page {
+  background: transparent;
+}
+
+html.synth-bg .auth-card {
+  background: rgba(22, 15, 66, 0.72);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}

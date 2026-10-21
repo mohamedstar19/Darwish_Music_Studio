@@ -5,6 +5,7 @@ import { usePlayer } from '../state/PlayerContext.jsx';
 import { useToast } from '../state/ToastContext.jsx';
 import Icon from './Icon.jsx';
 import PlayerBar from './PlayerBar.jsx';
+import SynthBackground from './SynthBackground.jsx';
 
 const THEMES = [
   { id: 'dark', label: 'ليلي' },
@@ -216,6 +217,7 @@ export default function Layout() {
   }, [location.pathname]);
   return (
     <div className="app">
+      <SynthBackground />
       <Sidebar />
       <div className="main-col">
         <TopBar />

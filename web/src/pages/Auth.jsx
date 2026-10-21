@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import SynthBackground from '../components/SynthBackground.jsx';
 import { useAuth } from '../state/AuthContext.jsx';
 
 function AuthShell({ title, children }) {
   return (
     <div className="auth-page">
+      <SynthBackground />
       <div className="auth-card">
         <img className="auth-logo" src="/logo-192.png" alt="Darwish Music Studio" width="112" height="112" />
         <h1>{title}</h1>
