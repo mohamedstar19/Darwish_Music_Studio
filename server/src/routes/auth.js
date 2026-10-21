@@ -65,6 +65,22 @@ export default async function authRoutes(app) {
     allowRegistration: config.allowRegistration,
   }));
 
+  // Delete my account (required by Google Play). Favorites, playlists and requests go with it;
+  // listening history stays only as anonymous totals.
+  app.delete('/api/auth/me', { onRequest: requireUser, config: { rateLimit: { max: 5, timeWindow: '10 minutes' } } }, async (request, reply) => {
+    const u = request.currentUser;
+    if (!(await checkPassword(String(request.body?.password || ''), u.password_hash))) {
+      throw httpError(400, 'كلمة المرور غلط');
+    }
+    if (u.role === 'admin') {
+      const others = await one("SELECT count(*)::int AS n FROM users WHERE role = 'admin' AND id <> $1 AND NOT is_disabled", [u.id]);
+      if (!others.n) throw httpError(400, 'ده آخر حساب مدير. خلي حد تاني مدير الأول قبل ما تمسحه.');
+    }
+    await one('DELETE FROM users WHERE id = $1 RETURNING id', [u.id]);
+    clearAuthCookie(reply);
+    return { ok: true };
+  });
+
   app.patch('/api/auth/me', { onRequest: requireUser }, async (request) => {
     const u = request.currentUser;
     const { displayName, historyEnabled, currentPassword, newPassword } = request.body || {};

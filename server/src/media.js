@@ -131,7 +131,12 @@ async function drain() {
  * at the same volume, read its duration and pull an embedded cover if there is one.
  */
 async function processTrack(id) {
-  const track = await one('SELECT id, original_path, audio_path, cover_path FROM tracks WHERE id = $1', [id]);
+  const track = await one(
+    `SELECT t.id, t.original_path, t.audio_path, t.cover_path, a.photo_path AS artist_photo, w.cover_path AS work_cover
+     FROM tracks t LEFT JOIN artists a ON a.id = t.artist_id LEFT JOIN works w ON w.id = t.work_id
+     WHERE t.id = $1`,
+    [id],
+  );
   if (!track || !track.original_path) return;
   await query("UPDATE tracks SET processing_status = 'processing', processing_error = NULL WHERE id = $1", [id]);
 
@@ -155,7 +160,9 @@ async function processTrack(id) {
     const size = (await fsp.stat(out)).size;
 
     let coverName = track.cover_path;
-    if (!coverName) {
+    // Use the picture inside the file only when the artist (or show) has no picture of its own,
+    // so every song of an artist shows the artist photo by default.
+    if (!coverName && !track.artist_photo && !track.work_cover) {
       const tmpCover = path.join(dirs.tmp, randomName('.jpg'));
       try {
         await runFfmpeg(['-i', source, '-an', '-map', '0:v:0', '-frames:v', '1', tmpCover]);

@@ -25,8 +25,11 @@ function adminTrack(t) {
     duration: t.duration_sec,
     lyrics: t.lyrics,
     credits: t.credits,
-    cover: coverUrl(t.cover_path || t.work_cover_path),
+    cover: coverUrl(t.cover_path || t.artist_photo_path || t.work_cover_path),
     hasOwnCover: !!t.cover_path,
+    // Where the shown picture comes from: the song itself, its artist, or its show.
+    coverSource: t.cover_path ? 'own' : t.artist_photo_path ? 'artist' : t.work_cover_path ? 'work' : null,
+    artistHasPhoto: !!t.artist_photo_path,
     fileSize: t.file_size,
     processingStatus: t.processing_status,
     processingError: t.processing_error,
@@ -46,7 +49,7 @@ function adminTrack(t) {
 }
 
 const ADMIN_TRACK_SELECT = `
-  SELECT t.*, a.name AS artist_name, w.title AS work_title, w.cover_path AS work_cover_path,
+  SELECT t.*, a.name AS artist_name, a.photo_path AS artist_photo_path, w.title AS work_title, w.cover_path AS work_cover_path,
          c.name AS category_name, ${PLAYABLE} AS playable,
          (SELECT array_agg(st.station_id) FROM station_tracks st WHERE st.track_id = t.id) AS station_ids
   FROM tracks t
@@ -265,6 +268,16 @@ export default async function adminRoutes(app) {
     return getAdminTrack(id);
   });
 
+  // Drop the song's own picture so it goes back to the artist photo (or the show cover).
+  app.delete('/api/admin/tracks/:id/cover', editor, async (request) => {
+    const id = toInt(request.params.id);
+    const t = await one('SELECT cover_path FROM tracks WHERE id = $1', [id]);
+    if (!t) throw httpError(404, 'الأغنية غير موجودة');
+    await query('UPDATE tracks SET cover_path = NULL, updated_at = now() WHERE id = $1', [id]);
+    await removeMedia('covers', t.cover_path);
+    return getAdminTrack(id);
+  });
+
   app.post('/api/admin/tracks/:id/reprocess', editor, async (request) => {
     const id = toInt(request.params.id);
     await query("UPDATE tracks SET processing_status = 'pending', processing_error = NULL WHERE id = $1", [id]);
@@ -436,7 +449,9 @@ export default async function adminRoutes(app) {
   const shapeAdminArtist = (a) => ({ ...a, photo: coverUrl(a.photo_path) });
 
   app.get('/api/admin/artists', editor, async () => {
-    const rows = await many(`SELECT a.*, count(t.id)::int AS track_count FROM artists a
+    const rows = await many(`SELECT a.*, count(t.id)::int AS track_count,
+            count(t.id) FILTER (WHERE t.cover_path IS NOT NULL)::int AS own_cover_count
+          FROM artists a
           LEFT JOIN tracks t ON t.artist_id = a.id GROUP BY a.id ORDER BY a.name`);
     return rows.map(shapeAdminArtist);
   });
@@ -477,6 +492,21 @@ export default async function adminRoutes(app) {
     const updated = await one('UPDATE artists SET photo_path = $2 WHERE id = $1 RETURNING *', [a.id, name]);
     await removeMedia('covers', a.photo_path);
     return shapeAdminArtist(updated);
+  });
+
+  // Make every song of this artist use the artist photo (removes the songs' own pictures).
+  app.post('/api/admin/artists/:id/apply-photo', editor, async (request) => {
+    const a = await one('SELECT * FROM artists WHERE id = $1', [toInt(request.params.id)]);
+    if (!a) throw httpError(404, 'غير موجود');
+    if (!a.photo_path) throw httpError(400, 'ارفع صورة للفنان الأول');
+    const rows = await many(
+      `UPDATE tracks t SET cover_path = NULL, updated_at = now()
+       FROM (SELECT id, cover_path AS old FROM tracks WHERE artist_id = $1 AND cover_path IS NOT NULL) o
+       WHERE t.id = o.id RETURNING o.old`,
+      [a.id],
+    );
+    for (const r of rows) await removeMedia('covers', r.old);
+    return { ok: true, changed: rows.length };
   });
 
   app.delete('/api/admin/artists/:id/photo', editor, async (request) => {
@@ -765,8 +795,9 @@ export default async function adminRoutes(app) {
     const trackIds = [...new Set(list.map((s) => s.trackId).filter(Boolean))];
     const tracks = trackIds.length
       ? await many(
-          `SELECT t.id, t.title, w.title AS work_title, coalesce(t.cover_path, w.cover_path) AS cover_path
-           FROM tracks t LEFT JOIN works w ON w.id = t.work_id WHERE t.id = ANY($1::int[])`,
+          `SELECT t.id, t.title, w.title AS work_title, coalesce(t.cover_path, a.photo_path, w.cover_path) AS cover_path
+           FROM tracks t LEFT JOIN works w ON w.id = t.work_id LEFT JOIN artists a ON a.id = t.artist_id
+           WHERE t.id = ANY($1::int[])`,
           [trackIds],
         )
       : [];

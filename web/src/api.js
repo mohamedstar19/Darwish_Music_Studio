@@ -43,6 +43,8 @@ export const api = {
   put: (url, body) => request('PUT', url, body ?? {}),
   patch: (url, body) => request('PATCH', url, body ?? {}),
   del: (url) => request('DELETE', url),
+  /** DELETE with a JSON body (e.g. a password confirmation). */
+  del2: (url, body) => request('DELETE', url, body ?? {}),
 };
 
 /** Upload with progress (fetch has no upload progress). */

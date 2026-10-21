@@ -1,0 +1,14 @@
+# Signing secrets: never commit. Back them up somewhere safe.
+keystore/
+keystore.properties
+*.jks
+*.keystore
+
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+store/*.aab
+store/*.apk

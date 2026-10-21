@@ -14,12 +14,13 @@ export async function officialPlaylists(limit = 12) {
   const rows = await many(
     `SELECT p.id, p.title, p.description, p.mood,
             count(t.id)::int AS track_count,
-            (array_agg(coalesce(t.cover_path, w.cover_path) ORDER BY pt.position)
-               FILTER (WHERE coalesce(t.cover_path, w.cover_path) IS NOT NULL))[1:4] AS covers
+            (array_agg(coalesce(t.cover_path, ar.photo_path, w.cover_path) ORDER BY pt.position)
+               FILTER (WHERE coalesce(t.cover_path, ar.photo_path, w.cover_path) IS NOT NULL))[1:4] AS covers
      FROM playlists p
      LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
      LEFT JOIN tracks t ON t.id = pt.track_id AND ${PLAYABLE}
      LEFT JOIN works w ON w.id = t.work_id
+     LEFT JOIN artists ar ON ar.id = t.artist_id
      WHERE p.is_official
      GROUP BY p.id
      ORDER BY p.updated_at DESC

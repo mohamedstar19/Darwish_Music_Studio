@@ -888,6 +888,21 @@ export function Artists() {
                 <small className="muted">صورة مربعة أحسن. هتتقص دايرة وهتتصغر لوحدها.</small>
               </div>
             </div>
+            <p className="muted small">
+              صورة الفنان بتظهر تلقائي على كل أغانيه. الأغنية اللي ليها صورة خاصة بيها (من تعديل الأغنية) بتفضل بصورتها.
+            </p>
+            {edit.id && edit.photo && edit.own_cover_count ? (
+              <button
+                type="button"
+                className="btn btn-ghost btn-small"
+                onClick={async () => {
+                  const r = await save(() => api.post(`/api/admin/artists/${edit.id}/apply-photo`), 'اتطبقت');
+                  if (r) setEdit({ ...edit, own_cover_count: 0 });
+                }}
+              >
+                طبّق صورة الفنان على كل أغانيه ({edit.own_cover_count} أغنية ليها صورة خاصة)
+              </button>
+            ) : null}
             <label>
               الاسم
               <input name="name" className="input" defaultValue={edit.name || ''} required maxLength={120} />

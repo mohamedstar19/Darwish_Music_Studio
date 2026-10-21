@@ -1,0 +1,59 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Release signing comes from android/keystore.properties (never committed).
+def keystoreProps = new Properties()
+def keystoreFile = rootProject.file('keystore.properties')
+if (keystoreFile.exists()) {
+    keystoreFile.withInputStream { keystoreProps.load(it) }
+}
+
+// The website this app opens. Change it here and in res/values/strings.xml together.
+def siteHost = 'dms.darwish-tech.com'
+
+android {
+    namespace 'com.darwishtech.dms'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.darwishtech.dms'
+        minSdk 24
+        targetSdk 36
+        // Raise versionCode by 1 for every upload to Google Play.
+        versionCode 1
+        versionName '1.0.0'
+        manifestPlaceholders = [hostName: siteHost, defaultUrl: "https://${siteHost}/"]
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreFile.exists()) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            if (keystoreFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.4'
+}

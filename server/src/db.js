@@ -69,7 +69,7 @@ export const PLAYABLE = `(t.is_published
 /** Standard track columns with artist/work/category names joined in. */
 export const TRACK_SELECT = `
   SELECT t.id, t.title, t.year, t.duration_sec, t.cover_path, t.play_count,
-         t.artist_id, a.name AS artist_name,
+         t.artist_id, a.name AS artist_name, a.photo_path AS artist_photo_path,
          t.work_id, w.title AS work_title, w.cover_path AS work_cover_path,
          t.category_id, c.name AS category_name, c.slug AS category_slug
   FROM tracks t

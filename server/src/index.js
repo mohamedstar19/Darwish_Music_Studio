@@ -50,6 +50,23 @@ app.setErrorHandler((err, request, reply) => {
   reply.status(status).send({ error: message });
 });
 
+// Lets the Android app open this site full screen (no browser bar).
+app.get('/.well-known/assetlinks.json', async (request, reply) => {
+  reply.header('Cache-Control', 'public, max-age=3600');
+  return config.androidSha256.length
+    ? [
+        {
+          relation: ['delegate_permission/common.handle_all_urls'],
+          target: {
+            namespace: 'android_app',
+            package_name: config.androidPackage,
+            sha256_cert_fingerprints: config.androidSha256,
+          },
+        },
+      ]
+    : [];
+});
+
 app.get('/api/health', async () => {
   await pool.query('SELECT 1');
   return { ok: true, time: new Date().toISOString() };

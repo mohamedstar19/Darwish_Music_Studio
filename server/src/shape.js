@@ -11,7 +11,8 @@ export function shapeTrack(t) {
     year: t.year,
     duration: t.duration_sec,
     playCount: t.play_count,
-    cover: coverUrl(t.cover_path || t.work_cover_path),
+    // Song's own cover, else the artist's photo, else the show's cover.
+    cover: coverUrl(t.cover_path || t.artist_photo_path || t.work_cover_path),
     artist: t.artist_id ? { id: t.artist_id, name: t.artist_name } : null,
     work: t.work_id ? { id: t.work_id, title: t.work_title } : null,
     category: t.category_id ? { id: t.category_id, name: t.category_name, slug: t.category_slug } : null,

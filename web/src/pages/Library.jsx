@@ -577,6 +577,70 @@ function SettingsInner() {
           <p className="muted small">على الموبايل: افتح قائمة المتصفح واختار "إضافة للشاشة الرئيسية".</p>
         )}
       </div>
+
+      <DeleteAccount />
+    </div>
+  );
+}
+
+function DeleteAccount() {
+  const { setUser } = useAuth();
+  const toast = useToast();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    if (f.get('confirm') !== 'امسح') {
+      toast('اكتب كلمة "امسح" عشان تأكد', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.del2('/api/auth/me', { password: f.get('password') });
+      setUser(null);
+      toast('حسابك اتمسح. مع السلامة 👋', 'success');
+      navigate('/');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="form card-box danger-box" id="delete-account">
+      <h3>حذف الحساب</h3>
+      <p className="muted small">
+        هيتمسح حسابك نهائيًا مع المفضلة وقوائم التشغيل وطلبات الأغاني. سجل الاستماع بيفضل بس كأرقام مجمعة من غير اسمك. مفيش
+        رجوع بعد المسح.
+      </p>
+      {!open ? (
+        <button type="button" className="btn btn-danger" onClick={() => setOpen(true)}>
+          عايز أمسح حسابي
+        </button>
+      ) : (
+        <form className="form" onSubmit={submit}>
+          <label>
+            كلمة المرور
+            <input name="password" type="password" className="input" required autoComplete="current-password" />
+          </label>
+          <label>
+            اكتب كلمة "امسح" للتأكيد
+            <input name="confirm" className="input" required autoComplete="off" />
+          </label>
+          <div className="page-header-actions">
+            <button className="btn btn-danger" disabled={busy}>
+              {busy ? 'لحظة...' : 'امسح حسابي نهائيًا'}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>
+              إلغاء
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

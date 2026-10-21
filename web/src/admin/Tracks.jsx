@@ -220,6 +220,15 @@ function EditTrack({ id, lookups, onClose, onSaved }) {
     }
   };
 
+  const resetCover = async () => {
+    try {
+      setT(await api.del(`/api/admin/tracks/${id}/cover`));
+      onSaved();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
   const reprocess = async () => {
     setT(await api.post(`/api/admin/tracks/${id}/reprocess`));
   };
@@ -238,10 +247,22 @@ function EditTrack({ id, lookups, onClose, onSaved }) {
       <form className="edit-track" onSubmit={save}>
         <div className="edit-side">
           <Cover src={t.cover} size={200} seed={t.id} />
+          <p className="muted small cover-source">
+            {{
+              own: 'صورة خاصة بالأغنية دي',
+              artist: 'صورة الفنان (تلقائي)',
+              work: 'صورة العمل (تلقائي)',
+            }[t.coverSource] || 'من غير صورة'}
+          </p>
           <label className="btn btn-ghost btn-small">
-            تغيير الغلاف
+            {t.coverSource === 'own' ? 'تغيير صورة الأغنية' : 'صورة مختلفة للأغنية دي'}
             <input type="file" accept="image/*" hidden onChange={(e) => e.target.files[0] && uploadCover(e.target.files[0])} />
           </label>
+          {t.coverSource === 'own' ? (
+            <button type="button" className="btn btn-ghost btn-small" onClick={resetCover}>
+              {t.artistHasPhoto ? 'رجّع لصورة الفنان' : 'شيل صورة الأغنية'}
+            </button>
+          ) : null}
           <div className={`status status-${t.processingStatus}`}>{STATUS_LABEL[t.processingStatus]}</div>
           {t.processingError ? <p className="form-error small">{t.processingError}</p> : null}
           {t.processingStatus === 'ready' ? (

@@ -3121,3 +3121,7 @@ html.synth-bg .auth-card {
   align-items: flex-start;
   gap: 8px;
 }
+
+.danger-box {
+  border-color: color-mix(in srgb, var(--bad) 40%, transparent);
+}

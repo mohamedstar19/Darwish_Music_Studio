@@ -29,4 +29,11 @@ export const config = {
   // Secret URL segment for the admin panel (https://site/<adminPath>). Only staff are told it,
   // and every /api/admin call must carry it too. Falls back to "admin" when unset.
   adminPath: (env.ADMIN_PATH || 'admin').replace(/[^A-Za-z0-9_-]/g, '') || 'admin',
+  // Android app (Trusted Web Activity) verification: /.well-known/assetlinks.json.
+  // ANDROID_SHA256 = comma-separated SHA-256 fingerprints (upload key + Google Play app signing key).
+  androidPackage: env.ANDROID_PACKAGE || 'com.darwishtech.dms',
+  androidSha256: (env.ANDROID_SHA256 || '')
+    .split(',')
+    .map((s) => s.trim().toUpperCase())
+    .filter((s) => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(s)),
 };
