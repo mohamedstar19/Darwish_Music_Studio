@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatTime } from '../api.js';
 import { useAuth } from '../state/AuthContext.jsx';
@@ -171,8 +171,118 @@ export function TrackCard({ track, list, index, source }) {
   );
 }
 
-export function Shelf({ children }) {
-  return <div className="shelf">{children}</div>;
+/**
+ * Horizontal row of cards with no visible scrollbar: arrow buttons (desktop),
+ * faded edges where more cards are hidden, mouse drag, and page dots.
+ */
+export function Shelf({ children, className = '' }) {
+  const ref = useRef(null);
+  const drag = useRef(null);
+  const [edges, setEdges] = useState({ start: true, end: true });
+  const [pages, setPages] = useState({ count: 1, current: 0 });
+
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const pos = Math.abs(el.scrollLeft);
+    const max = el.scrollWidth - el.clientWidth;
+    // Hidden or not-yet-laid-out shelves report a tiny width; show no dots then. Cap at 8 dots.
+    const count = max > 4 && el.clientWidth > 80 ? Math.min(8, Math.ceil(el.scrollWidth / el.clientWidth)) : 1;
+    setEdges({ start: pos <= 4, end: pos >= max - 4 });
+    setPages({ count, current: max > 4 ? Math.round((pos / max) * (count - 1)) : 0 });
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measure, children]);
+
+  // In RTL the "forward" direction is towards negative scrollLeft.
+  const sign = () => (ref.current && getComputedStyle(ref.current).direction === 'rtl' ? -1 : 1);
+
+  const go = (dir) => {
+    const el = ref.current;
+    el.scrollBy({ left: el.clientWidth * 0.85 * dir * sign(), behavior: 'smooth' });
+  };
+
+  const goTo = (i) => {
+    const el = ref.current;
+    const max = el.scrollWidth - el.clientWidth;
+    el.scrollTo({ left: ((max * i) / Math.max(1, pages.count - 1)) * sign(), behavior: 'smooth' });
+  };
+
+  // Drag to scroll with the mouse (touch already scrolls natively).
+  const onPointerDown = (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    drag.current = { x: e.clientX, left: ref.current.scrollLeft, moved: false, id: e.pointerId };
+  };
+  const onPointerMove = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    if (!d.moved && Math.abs(dx) > 6) {
+      d.moved = true;
+      ref.current.classList.add('dragging');
+      ref.current.setPointerCapture(d.id);
+    }
+    if (d.moved) ref.current.scrollLeft = d.left - dx;
+  };
+  const endDrag = () => {
+    const d = drag.current;
+    if (!d) return;
+    ref.current.classList.remove('dragging');
+    if (d.moved) {
+      // Swallow the click that follows a drag so cards don't open by accident.
+      const swallow = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+      };
+      ref.current.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => ref.current?.removeEventListener('click', swallow, { capture: true }), 50);
+    }
+    drag.current = null;
+  };
+
+  return (
+    <div className={`shelf-wrap ${edges.start ? 'at-start' : ''} ${edges.end ? 'at-end' : ''}`}>
+      <button type="button" className="shelf-arrow shelf-prev" onClick={() => go(-1)} disabled={edges.start} aria-label="اللي قبل">
+        <Icon name="back" size={22} />
+      </button>
+      <div
+        ref={ref}
+        className={`shelf ${className}`}
+        onScroll={measure}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      >
+        {children}
+      </div>
+      <button type="button" className="shelf-arrow shelf-next" onClick={() => go(1)} disabled={edges.end} aria-label="اللي بعد">
+        <Icon name="back" size={22} className="flip-x" />
+      </button>
+      {pages.count > 1 ? (
+        <div className="shelf-dots" role="tablist" aria-label="الصفحات">
+          {Array.from({ length: pages.count }, (_, i) => (
+            <button
+              key={i}
+              type="button"
+              role="tab"
+              aria-selected={i === pages.current}
+              aria-label={`صفحة ${i + 1}`}
+              className={i === pages.current ? 'on' : ''}
+              onClick={() => goTo(i)}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function TrackShelf({ tracks, source }) {

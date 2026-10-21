@@ -103,7 +103,7 @@ export default function Home() {
       ) : null}
 
       <Section title="محطات الراديو" to="/radio">
-        <Shelf>
+        <Shelf className="shelf-stations">
           {data.stations.map((s) => (
             <StationCard key={s.id} station={s} />
           ))}
