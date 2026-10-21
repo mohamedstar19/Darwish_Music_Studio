@@ -1,17 +1,21 @@
 /* ===== Theme tokens ===== */
+/* Dark theme follows the DMS logo: night-purple sky, neon magenta, sunset orange,
+   with yellow and cyan from the letters as extra highlights. */
 :root {
-  --bg: #120a26;
-  --bg-2: #1b1238;
-  --surface: #231849;
-  --surface-2: #2d2058;
-  --line: rgba(255, 255, 255, 0.09);
-  --text: #f6f2ff;
-  --text-2: #c9bfe6;
-  --muted: #9a8fbd;
-  --accent: #ff8a3d;
-  --accent-2: #ffb347;
-  --accent-ink: #1d0f00;
-  --pink: #ff4fa3;
+  --bg: #0e0930;
+  --bg-2: #160f42;
+  --surface: #21175c;
+  --surface-2: #2c1f73;
+  --line: rgba(255, 255, 255, 0.1);
+  --text: #f7f3ff;
+  --text-2: #cfc6f0;
+  --muted: #9d93c9;
+  --accent: #ff2d9b;
+  --accent-2: #ff8a2a;
+  --accent-ink: #1a0633;
+  --pink: #22c4ff;
+  --yellow: #ffd23f;
+  --cyan: #22c4ff;
   --good: #34d399;
   --warn: #fbbf24;
   --bad: #f87171;
@@ -33,9 +37,10 @@
   --text: #1c1236;
   --text-2: #3f3463;
   --muted: #6f6590;
-  --accent: #e8590c;
-  --accent-2: #f08c00;
+  --accent: #d4127e;
+  --accent-2: #e8590c;
   --accent-ink: #ffffff;
+  --pink: #0b8fd1;
   --shadow: 0 10px 30px rgba(40, 20, 90, 0.12);
   color-scheme: light;
 }
@@ -182,14 +187,11 @@ h2 {
 }
 
 .logo-mark {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, var(--accent), var(--pink));
-  color: #fff;
-  box-shadow: 0 4px 14px rgba(255, 79, 163, 0.35);
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .logo-text {
@@ -2071,10 +2073,56 @@ input[type='range']:disabled {
 }
 
 .auth-logo {
-  font-family: var(--display);
-  font-size: 2.4rem;
-  color: var(--accent);
-  text-align: center;
+  display: block;
+  width: 112px;
+  height: 112px;
+  margin: -64px auto 8px;
+  border-radius: 26px;
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.auth-card {
+  margin-top: 56px;
+}
+
+/* Home hero: the DMS logo floating with a neon glow and a live equalizer. */
+.hero-logo {
+  position: relative;
+  width: 240px;
+  display: grid;
+  justify-items: center;
+}
+
+.hero-logo img {
+  width: 240px;
+  height: 240px;
+  border-radius: 52px;
+  filter: drop-shadow(0 18px 40px color-mix(in srgb, var(--accent) 45%, transparent));
+}
+
+.hero-eq {
+  height: 28px;
+  margin-top: 10px;
+}
+
+.hero-eq i:nth-child(1) {
+  background: var(--accent);
+}
+
+.hero-eq i:nth-child(2) {
+  background: var(--yellow, var(--accent-2));
+}
+
+.hero-eq i:nth-child(3) {
+  background: var(--cyan, var(--accent-2));
+}
+
+.hero-eq i:nth-child(4) {
+  background: var(--accent-2);
+}
+
+.hero-eq i:nth-child(5) {
+  background: var(--accent);
 }
 
 .auth-card h1 {

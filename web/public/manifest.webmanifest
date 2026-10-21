@@ -1,22 +1,23 @@
 {
   "name": "Darwish Music Studio",
-  "short_name": "درويش",
+  "short_name": "DMS",
   "description": "ذكريات عايشة جوانا... وأغاني عمرها ما بتنسينا",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#120a26",
-  "theme_color": "#140c2b",
+  "background_color": "#0f0a2e",
+  "theme_color": "#170f40",
   "categories": ["music", "entertainment"],
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    { "src": "/logo-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/logo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "الراديو", "url": "/radio" },
-    { "name": "خمّن الشارة", "url": "/quiz" },
-    { "name": "ذكرياتي", "url": "/memories" }
+    { "name": "الراديو", "url": "/radio", "icons": [{ "src": "/logo-192.png", "sizes": "192x192" }] },
+    { "name": "خمّن الشارة", "url": "/quiz", "icons": [{ "src": "/logo-192.png", "sizes": "192x192" }] },
+    { "name": "ذكرياتي", "url": "/memories", "icons": [{ "src": "/logo-192.png", "sizes": "192x192" }] }
   ]
 }

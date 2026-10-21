@@ -66,20 +66,15 @@ export default function Home() {
           </div>
         </div>
         <div className="hero-art" aria-hidden="true">
-          <div className="tv">
-            <div className="tv-screen">
-              <span className="eq">
-                <i />
-                <i />
-                <i />
-                <i />
-                <i />
-              </span>
-            </div>
-            <div className="tv-knobs">
+          <div className="hero-logo">
+            <img src="/logo-512.png" alt="" width="240" height="240" />
+            <span className="eq hero-eq">
               <i />
               <i />
-            </div>
+              <i />
+              <i />
+              <i />
+            </span>
           </div>
         </div>
       </section>

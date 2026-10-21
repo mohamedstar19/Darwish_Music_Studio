@@ -1,8 +1,8 @@
 /* Darwish Music Studio service worker: makes the app installable and keeps the shell
  * working on flaky connections. Audio and API responses are never cached here
  * (rights + freshness); only the app shell, built assets and cover images. */
-const VERSION = 'dms-v1';
-const SHELL = ['/', '/manifest.webmanifest', '/icon.svg'];
+const VERSION = 'dms-v2';
+const SHELL = ['/', '/manifest.webmanifest', '/logo-192.png', '/favicon-64.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

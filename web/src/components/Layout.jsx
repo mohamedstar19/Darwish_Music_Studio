@@ -29,9 +29,7 @@ export function useTheme() {
 function Logo() {
   return (
     <Link to="/" className="logo" aria-label="Darwish Music Studio">
-      <span className="logo-mark">
-        <Icon name="music" size={20} />
-      </span>
+      <img className="logo-mark" src="/logo-192.png" alt="" width="44" height="44" />
       <span className="logo-text">
         <b>درويش</b>
         <small>Music Studio</small>
