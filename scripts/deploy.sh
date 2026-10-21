@@ -12,7 +12,12 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-git pull --ff-only
+# Pull first, then restart this script so the *new* version of it runs
+# (bash would otherwise keep reading the old file while git replaces it).
+if [ "${1:-}" != "--after-pull" ]; then
+  git pull --ff-only
+  exec "$0" --after-pull
+fi
 
 # Older installs: give the admin panel a secret URL if it doesn't have one yet.
 if ! grep -qE '^ADMIN_PATH=.+' .env; then
