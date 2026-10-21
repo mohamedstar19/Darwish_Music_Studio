@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+// hls.js is imported on demand, only when an HLS (.m3u8) station is played.
 import { api, listenerId, saveStorage, storage, streamUrl } from '../api.js';
 
 const PlayerContext = createContext(null);
@@ -37,7 +38,21 @@ export function PlayerProvider({ children }) {
   const [sleep, setSleep] = useState(null); // { until } | { endOfTrack: true }
   const [source, setSource] = useState('ondemand');
 
-  const current = mode === 'radio' ? radio?.track || null : queue[index] || null;
+  // External stations have no track in our library; show the station (and its live song title) instead.
+  const externalNow = useMemo(() => {
+    if (mode !== 'radio' || !radio?.external) return null;
+    return {
+      id: null,
+      external: true,
+      title: radio.nowTitle || radio.station?.name || '',
+      artist: null,
+      work: null,
+      cover: radio.station?.logo || null,
+      duration: 0,
+    };
+  }, [mode, radio?.external, radio?.nowTitle, radio?.station?.name, radio?.station?.logo]);
+
+  const current = mode === 'radio' ? externalNow || radio?.track || null : queue[index] || null;
 
   // Latest state for event handlers registered once.
   const st = useRef({});
@@ -47,11 +62,20 @@ export function PlayerProvider({ children }) {
   const loadedTrackId = useRef(null);
   const listen = useRef({ trackId: null, seconds: 0, lastTime: 0, source: 'ondemand', stationId: null });
   const radioRetry = useRef(null);
+  const hlsRef = useRef(null);
+  const externalRetried = useRef(false);
+
+  const detachHls = useCallback(() => {
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+  }, []);
 
   // ---- Listening log ----
   const flushListen = useCallback((useBeacon = false) => {
     const l = listen.current;
-    if (l.trackId && l.seconds >= 5) {
+    if ((l.trackId || l.stationId) && l.seconds >= 5) {
       const body = { trackId: l.trackId, seconds: Math.round(l.seconds), source: l.source, stationId: l.stationId };
       if (useBeacon && navigator.sendBeacon) {
         navigator.sendBeacon('/api/plays', new Blob([JSON.stringify(body)], { type: 'application/json' }));
@@ -66,6 +90,7 @@ export function PlayerProvider({ children }) {
     (track, { offset = 0, autoplay = true, src = 'ondemand', stationId = null } = {}) => {
       if (!track) return;
       flushListen();
+      detachHls();
       listen.current = { trackId: track.id, seconds: 0, lastTime: offset, source: src, stationId };
       setError(null);
       setTime(offset);
@@ -79,7 +104,46 @@ export function PlayerProvider({ children }) {
         });
       }
     },
-    [audio, flushListen],
+    [audio, flushListen, detachHls],
+  );
+
+  /** Start an external internet-radio stream (Icecast/Shoutcast/HLS) from its live edge. */
+  const startExternal = useCallback(
+    async (data) => {
+      flushListen();
+      detachHls();
+      listen.current = { trackId: null, seconds: 0, lastTime: 0, source: 'radio', stationId: data.station.id };
+      setError(null);
+      setTime(0);
+      setDuration(0);
+      pendingOffset.current = null;
+      loadedTrackId.current = `ext:${data.station.slug}`;
+      let url = data.streamUrl;
+      // Browsers block http:// audio on an https:// page, so relay it through our server.
+      if (window.location.protocol === 'https:' && url.startsWith('http:') && !data.isHls) {
+        url = `/api/stations/${data.station.slug}/stream`;
+      }
+      if (data.isHls && !audio.canPlayType('application/vnd.apple.mpegurl')) {
+        const { default: Hls } = await import('hls.js');
+        if (!Hls.isSupported()) {
+          setError('المتصفح ده مش بيدعم نوع البث ده');
+          return;
+        }
+        const hls = new Hls({ enableWorker: true });
+        hlsRef.current = hls;
+        hls.on(Hls.Events.ERROR, (_e, d) => {
+          if (d.fatal) setError('المحطة مش متاحة دلوقتي. جرب تاني بعد شوية.');
+        });
+        hls.loadSource(url);
+        hls.attachMedia(audio);
+      } else {
+        audio.src = url;
+      }
+      audio.play().catch((err) => {
+        if (err.name !== 'AbortError') setIsPlaying(false);
+      });
+    },
+    [audio, flushListen, detachHls],
   );
 
   // ---- On-demand queue ----
@@ -188,6 +252,13 @@ export function PlayerProvider({ children }) {
         return;
       }
       const latency = (performance.now() - asked) / 2000;
+      if (data.external && !data.empty) {
+        setRadio({ slug, ...data });
+        // Already tuned in and playing: only refresh the song title / listener count.
+        const tuned = loadedTrackId.current === `ext:${slug}` && !audio.paused && !audio.ended;
+        if (!tuned) startExternal(data);
+        return;
+      }
       if (data.empty || !data.track) {
         setRadio({ slug, ...data });
         setError('المحطة دي لسه مفيهاش أغاني متاحة');
@@ -209,20 +280,22 @@ export function PlayerProvider({ children }) {
       }
       load(data.track, { offset: data.offsetSec + latency, autoplay, src: 'radio', stationId: data.station.id });
     },
-    [audio, load],
+    [audio, load, startExternal],
   );
 
   const playStation = useCallback(
     (slug) => {
       flushListen();
+      detachHls();
       audio.pause();
+      externalRetried.current = false;
       loadedTrackId.current = null;
       setMode('radio');
       setSource('radio');
       setRadio({ slug, loading: true });
       tuneRadio(slug);
     },
-    [audio, flushListen, tuneRadio],
+    [audio, flushListen, detachHls, tuneRadio],
   );
 
   // Keep radio in sync and listener counts fresh.
@@ -335,6 +408,7 @@ export function PlayerProvider({ children }) {
     const onPlaying = () => {
       setBuffering(false);
       setError(null);
+      externalRetried.current = false;
     };
     const onEnded = () => {
       const s = st.current;
@@ -359,13 +433,22 @@ export function PlayerProvider({ children }) {
     const onError = () => {
       if (!audio.src || !loadedTrackId.current) return;
       setBuffering(false);
+      const s = st.current;
+      if (s.mode === 'radio' && s.radio?.external) {
+        // External stream dropped or refused: try reconnecting once, then tell the listener.
+        setError(navigator.onLine ? 'المحطة مش متاحة دلوقتي. جرب تاني بعد شوية.' : 'انقطع الاتصال بالإنترنت');
+        if (navigator.onLine && !externalRetried.current) {
+          externalRetried.current = true;
+          setTimeout(() => tuneRadio(s.radio.slug), 4000);
+        }
+        return;
+      }
       const msg = navigator.onLine ? 'تعذر تشغيل الأغنية دي. هنجرب اللي بعدها.' : 'انقطع الاتصال بالإنترنت';
       setError(msg);
       api.post('/api/telemetry/playback-error', {
         trackId: loadedTrackId.current,
         message: `${audio.error?.code || ''} ${audio.error?.message || ''}`.trim(),
       }).catch(() => {});
-      const s = st.current;
       if (navigator.onLine && s.mode === 'queue' && s.index < s.queue.length - 1) {
         setTimeout(() => next(true), 2500);
       }

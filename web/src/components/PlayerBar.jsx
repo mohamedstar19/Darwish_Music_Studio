@@ -149,6 +149,21 @@ function Volume() {
 
 function QueuePanel() {
   const p = usePlayer();
+  if (p.mode === 'radio' && p.radio?.external) {
+    const s = p.radio.station || {};
+    return (
+      <div className="queue-panel">
+        <h4>بث مباشر</h4>
+        <p>{s.description || s.name}</p>
+        {p.radio.nowTitle ? <p className="muted">بيذيع دلوقتي: {p.radio.nowTitle}</p> : null}
+        {s.homepage ? (
+          <a href={s.homepage} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-small">
+            موقع المحطة
+          </a>
+        ) : null}
+      </div>
+    );
+  }
   if (p.mode === 'radio') {
     const r = p.radio || {};
     return (
@@ -270,7 +285,13 @@ function FullPlayer({ onClose }) {
             الكلمات والاعتمادات
           </button>
         </div>
-        {tab === 'queue' ? <QueuePanel /> : <Lyrics trackId={t.id} />}
+        {tab === 'queue' ? (
+          <QueuePanel />
+        ) : t.id ? (
+          <Lyrics trackId={t.id} />
+        ) : (
+          <p className="muted">دي محطة بث مباشر من برة، فمفيش كلمات للأغاني بتاعتها.</p>
+        )}
       </div>
     </div>
   );

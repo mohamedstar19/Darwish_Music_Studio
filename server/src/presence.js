@@ -35,6 +35,7 @@ export function heartbeat({ listenerId, user, userAgent, body }) {
     playing: !!body.playing,
     trackId: Number.isInteger(body.trackId) ? body.trackId : null,
     stationSlug: typeof body.stationSlug === 'string' ? body.stationSlug.slice(0, 60) : null,
+    nowTitle: typeof body.nowTitle === 'string' ? body.nowTitle.slice(0, 200) : null,
     position: Number.isFinite(body.position) ? Math.round(body.position) : null,
     firstSeen: prev?.firstSeen || now,
     lastSeen: now,

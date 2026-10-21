@@ -36,7 +36,7 @@ export async function officialPlaylists(limit = 12) {
   }));
 }
 
-function addBandwidth(bytes) {
+export function addBandwidth(bytes) {
   if (!bytes || bytes <= 0) return;
   query(
     `INSERT INTO bandwidth_daily (day, bytes) VALUES (CURRENT_DATE, $1)

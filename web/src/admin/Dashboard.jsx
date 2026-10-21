@@ -228,6 +228,11 @@ export function Live() {
                           {s.station ? <div className="small" style={{ color: 'var(--accent)' }}>📻 {s.station.name}</div> : null}
                           {!s.station && s.position !== null ? <div className="muted small">{formatTime(s.position)}</div> : null}
                         </>
+                      ) : s.station ? (
+                        <>
+                          {s.nowTitle || <span className="muted">بث مباشر</span>}
+                          <div className="small" style={{ color: 'var(--accent)' }}>📻 {s.station.name}</div>
+                        </>
                       ) : (
                         <span className="muted">—</span>
                       )}

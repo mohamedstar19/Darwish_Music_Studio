@@ -5,8 +5,10 @@
 }
 
 /* --- Page transition --- */
+/* `backwards` (not `both`): once finished, no transform/filter stays on the page,
+   otherwise it would trap position:fixed popups (modals) inside the page box. */
 .page-anim {
-  animation: pageIn 0.45s var(--ease-out) both;
+  animation: pageIn 0.45s var(--ease-out) backwards;
 }
 
 @keyframes pageIn {
@@ -844,7 +846,7 @@ input[type='range']:hover::-webkit-slider-thumb {
 
 /* --- Retro theme: a touch of old-TV wobble on page change --- */
 :root[data-theme='retro'] .page-anim {
-  animation: retroIn 0.5s steps(6) both;
+  animation: retroIn 0.5s steps(6) backwards;
 }
 
 @keyframes retroIn {

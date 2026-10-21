@@ -110,7 +110,7 @@ export function StationPage() {
     };
   }, [slug]);
 
-  const data = tunedHere && player.radio?.track ? player.radio : live;
+  const data = tunedHere && (player.radio?.track || player.radio?.external) ? player.radio : live;
   if (error) return <ErrorBox error={error} />;
   if (!data) return <Loading />;
   const station = data.station;
@@ -118,7 +118,8 @@ export function StationPage() {
   return (
     <div className="page station-page" style={{ '--station': station.color }}>
       <header className="station-hero">
-        <div className="kicker">محطة راديو</div>
+        {station.logo ? <img className="station-hero-logo" src={station.logo} alt="" /> : null}
+        <div className="kicker">{data.external ? 'محطة راديو · بث مباشر' : 'محطة راديو'}</div>
         <h1>{station.name}</h1>
         <p className="muted">{station.description}</p>
         <div className="page-header-actions">
@@ -137,6 +138,22 @@ export function StationPage() {
 
       {data.empty ? (
         <Empty icon="radio" title="المحطة دي لسه فاضية">الإدارة لسه مضافتش أغاني متاحة للمحطة.</Empty>
+      ) : data.external ? (
+        <Section title="على الهوا دلوقتي">
+          <div className="on-air">
+            <Cover src={station.logo} size={120} seed={station.id} />
+            <div>
+              <span className="live-badge">● مباشر</span>
+              <h3>{data.nowTitle || station.name}</h3>
+              {!data.nowTitle ? <p className="muted small">المحطة دي مش بتبعت اسم الأغنية اللي شغالة.</p> : null}
+              {station.homepage ? (
+                <a href={station.homepage} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-small">
+                  موقع المحطة
+                </a>
+              ) : null}
+            </div>
+          </div>
+        </Section>
       ) : (
         <div className="two-col">
           <Section title="على الهوا دلوقتي">

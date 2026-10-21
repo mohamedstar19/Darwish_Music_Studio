@@ -46,6 +46,10 @@ export function shapeStation(s) {
     isActive: s.is_active,
     shuffle: s.shuffle,
     requestsMode: s.requests_mode,
+    kind: s.kind || 'synced',
+    streamUrl: s.kind === 'external' ? s.stream_url : undefined,
+    homepage: s.homepage_url || null,
+    logo: coverUrl(s.logo_path),
     trackCount: s.track_count ?? undefined,
   };
 }

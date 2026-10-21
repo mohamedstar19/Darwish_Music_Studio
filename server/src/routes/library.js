@@ -162,18 +162,19 @@ export default async function libraryRoutes(app) {
   app.post('/api/plays', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (request) => {
     const b = request.body || {};
     const trackId = toInt(b.trackId);
+    const stationId = toInt(b.stationId);
     const seconds = Math.min(Math.max(toInt(b.seconds, 0), 0), 6 * 3600);
-    if (!trackId || seconds < 5) return { ok: true };
+    // External radio stations have no track, only a station.
+    if ((!trackId && !stationId) || seconds < 5) return { ok: true };
     const user = request.currentUser;
     const source = ['ondemand', 'radio', 'quiz', 'surprise'].includes(b.source) ? b.source : 'ondemand';
-    const stationId = toInt(b.stationId);
     // Anonymous or history-off listens still count toward totals, but without a user link.
     const userId = user && user.history_enabled ? user.id : null;
     await query(
       'INSERT INTO plays (user_id, track_id, station_id, source, seconds_listened) VALUES ($1, $2, $3, $4, $5)',
       [userId, trackId, stationId, source, seconds],
     );
-    if (seconds >= 15) await query('UPDATE tracks SET play_count = play_count + 1 WHERE id = $1', [trackId]);
+    if (trackId && seconds >= 15) await query('UPDATE tracks SET play_count = play_count + 1 WHERE id = $1', [trackId]);
     return { ok: true };
   });
 

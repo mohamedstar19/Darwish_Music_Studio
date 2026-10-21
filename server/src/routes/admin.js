@@ -5,6 +5,7 @@ import { coverUrl, shapeStation } from '../shape.js';
 import { cleanText, httpError, likePattern, slugify, toInt } from '../util.js';
 import { officialPlaylists } from './catalog.js';
 import { onlineSessions, updatePeak } from '../presence.js';
+import { forgetTitle, isHttpUrl, probeStream } from '../streams.js';
 
 const RIGHTS = ['original', 'licensed', 'pending'];
 const SCOPES = ['on_demand', 'radio', 'download', 'commercial'];
@@ -455,46 +456,165 @@ export default async function adminRoutes(app) {
     return rows.map(shapeStation);
   });
 
-  function stationValues(b, current = {}) {
+  async function uniqueStationSlug(base, exceptId = null) {
+    const root = slugify(base);
+    for (let i = 0; i < 50; i += 1) {
+      const slug = i ? `${root}-${i + 1}` : root;
+      const hit = await one('SELECT id FROM stations WHERE slug = $1 AND id IS DISTINCT FROM $2', [slug, exceptId]);
+      if (!hit) return slug;
+    }
+    return `${root}-${Date.now().toString(36)}`;
+  }
+
+  async function stationValues(b, current = {}) {
     const name = b.name !== undefined ? cleanText(b.name, 80) : current.name;
     if (!name) throw httpError(400, 'اكتب اسم المحطة');
     const mode = b.requestsMode ?? current.requests_mode ?? 'moderated';
     if (!['off', 'moderated', 'auto'].includes(mode)) throw httpError(400, 'وضع الطلبات غير صحيح');
-    return [
+    const kind = b.kind ?? current.kind ?? 'synced';
+    if (!['synced', 'external'].includes(kind)) throw httpError(400, 'نوع المحطة غير صحيح');
+    const streamUrl = b.streamUrl !== undefined ? cleanText(b.streamUrl, 1000) : current.stream_url ?? null;
+    if (kind === 'external' && !isHttpUrl(streamUrl)) {
+      throw httpError(400, 'حط رابط البث، لازم يبدأ بـ http:// أو https://');
+    }
+    const homepage = b.homepage !== undefined ? cleanText(b.homepage, 500) : current.homepage_url ?? null;
+    if (homepage && !isHttpUrl(homepage)) throw httpError(400, 'رابط موقع المحطة غير صحيح');
+    const wantedSlug = b.slug ? slugify(b.slug) : current.slug || name;
+    return {
       name,
-      b.slug ? slugify(b.slug) : current.slug || slugify(name),
-      b.description !== undefined ? cleanText(b.description, 500) : current.description ?? null,
-      cleanText(b.color, 20) || current.color || '#f97316',
-      typeof b.isActive === 'boolean' ? b.isActive : current.is_active ?? true,
-      typeof b.shuffle === 'boolean' ? b.shuffle : current.shuffle ?? true,
+      slug: await uniqueStationSlug(wantedSlug, current.id ?? null),
+      description: b.description !== undefined ? cleanText(b.description, 500) : current.description ?? null,
+      color: cleanText(b.color, 20) || current.color || '#f97316',
+      isActive: typeof b.isActive === 'boolean' ? b.isActive : current.is_active ?? true,
+      shuffle: typeof b.shuffle === 'boolean' ? b.shuffle : current.shuffle ?? true,
       mode,
-      toInt(b.sortOrder, current.sort_order ?? 0),
-    ];
+      sortOrder: toInt(b.sortOrder, current.sort_order ?? 0),
+      kind,
+      streamUrl: kind === 'external' ? streamUrl : null,
+      homepage,
+    };
+  }
+
+  async function insertStation(v) {
+    return one(
+      `INSERT INTO stations (name, slug, description, color, is_active, shuffle, requests_mode, sort_order,
+         kind, stream_url, homepage_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [v.name, v.slug, v.description, v.color, v.isActive, v.shuffle, v.mode, v.sortOrder, v.kind, v.streamUrl, v.homepage],
+    );
   }
 
   app.post('/api/admin/stations', editor, async (request) => {
-    const s = await one(
-      `INSERT INTO stations (name, slug, description, color, is_active, shuffle, requests_mode, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      stationValues(request.body || {}),
-    );
+    const s = await insertStation(await stationValues(request.body || {}));
     return shapeStation(s);
   });
 
   app.patch('/api/admin/stations/:id', editor, async (request) => {
     const current = await one('SELECT * FROM stations WHERE id = $1', [toInt(request.params.id)]);
     if (!current) throw httpError(404, 'غير موجود');
+    const v = await stationValues(request.body || {}, current);
     const s = await one(
       `UPDATE stations SET name = $2, slug = $3, description = $4, color = $5, is_active = $6, shuffle = $7,
-         requests_mode = $8, sort_order = $9 WHERE id = $1 RETURNING *`,
-      [current.id, ...stationValues(request.body || {}, current)],
+         requests_mode = $8, sort_order = $9, kind = $10, stream_url = $11, homepage_url = $12
+       WHERE id = $1 RETURNING *`,
+      [current.id, v.name, v.slug, v.description, v.color, v.isActive, v.shuffle, v.mode, v.sortOrder, v.kind, v.streamUrl, v.homepage],
     );
+    forgetTitle(current.id);
     return shapeStation(s);
   });
 
   app.delete('/api/admin/stations/:id', editor, async (request) => {
-    await query('DELETE FROM stations WHERE id = $1', [toInt(request.params.id)]);
+    const s = await one('DELETE FROM stations WHERE id = $1 RETURNING logo_path', [toInt(request.params.id)]);
+    if (s) await removeMedia('covers', s.logo_path);
     return { ok: true };
+  });
+
+  app.post('/api/admin/stations/:id/logo', editor, async (request) => {
+    const s = await one('SELECT * FROM stations WHERE id = $1', [toInt(request.params.id)]);
+    if (!s) throw httpError(404, 'غير موجود');
+    const part = await request.file();
+    if (!part) throw httpError(400, 'اختار صورة');
+    const name = await saveUpload(part, 'image');
+    const updated = await one('UPDATE stations SET logo_path = $2 WHERE id = $1 RETURNING *', [s.id, name]);
+    await removeMedia('covers', s.logo_path);
+    return shapeStation(updated);
+  });
+
+  // Check a stream link before saving: is it reachable, what does it call itself, what's playing.
+  app.post('/api/admin/stations/test-stream', editor, async (request) => {
+    const url = cleanText(request.body?.url, 1000);
+    return probeStream(url, { wantTitle: true });
+  });
+
+  /*
+   * Add many external stations at once. One per line, any of:
+   *   https://example.com/stream
+   *   اسم المحطة | https://example.com/stream
+   *   اسم المحطة https://example.com/listen.pls
+   * Names are read from the stream itself when missing.
+   */
+  app.post('/api/admin/stations/bulk', editor, async (request) => {
+    const lines = String(request.body?.text || '')
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 100);
+    if (!lines.length) throw httpError(400, 'الصق رابط واحد على الأقل');
+    const palette = ['#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#10b981', '#3b82f6', '#ec4899', '#f97316'];
+    const { rows: countRows } = await query('SELECT count(*)::int AS n FROM stations');
+    let order = countRows[0].n;
+
+    const results = [];
+    const queue = lines.map((line, i) => ({ line, i }));
+    async function worker() {
+      while (queue.length) {
+        const { line, i } = queue.shift();
+        const m = /(https?:\/\/\S+)/i.exec(line);
+        if (!m) {
+          results[i] = { line, ok: false, error: 'مفيش رابط في السطر ده' };
+          continue;
+        }
+        const url = m[1].replace(/[),.;]+$/, '');
+        const givenName = line.replace(m[0], '').replace(/[|\t,;:]+/g, ' ').trim();
+        const info = await probeStream(url, { wantTitle: false });
+        const streamUrl = info.ok && info.resolvedFrom ? info.url : url;
+        // Some servers report the mount file ("live.mp3") as their name; that's not a real name.
+        const streamName = info.name && !/\.(mp3|aac|ogg|opus|m3u8?|pls)$/i.test(info.name) ? info.name : null;
+        let name = cleanText(givenName, 80) || cleanText(streamName, 80);
+        if (!name) {
+          try {
+            name = new URL(url).hostname.replace(/^www\./, '');
+          } catch {
+            name = `Station ${i + 1}`;
+          }
+        }
+        try {
+          order += 1;
+          const v = await stationValues({
+            name,
+            kind: 'external',
+            streamUrl,
+            description: cleanText([info.genre, info.description].filter(Boolean).join(' · '), 500),
+            homepage: isHttpUrl(info.homepage) ? info.homepage : undefined,
+            color: palette[i % palette.length],
+            sortOrder: order,
+            requestsMode: 'off',
+          });
+          const s = await insertStation(v);
+          results[i] = {
+            line,
+            ok: true,
+            reachable: info.ok,
+            warning: info.ok ? null : info.error,
+            station: shapeStation(s),
+          };
+        } catch (err) {
+          results[i] = { line, ok: false, error: err.message };
+        }
+      }
+    }
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    return { results };
   });
 
   // Skip to the next song for everyone listening.
@@ -607,7 +727,7 @@ export default async function adminRoutes(app) {
         )
       : [];
     const byId = new Map(tracks.map((t) => [t.id, t]));
-    const stations = new Map((await many('SELECT slug, name, color FROM stations')).map((s) => [s.slug, s]));
+    const stations = new Map((await many('SELECT slug, name, color, kind FROM stations')).map((s) => [s.slug, s]));
 
     const sessionsOut = list.map((s) => {
       const t = byId.get(s.trackId);
@@ -621,15 +741,16 @@ export default async function adminRoutes(app) {
         mode: s.mode,
         station: s.mode === 'radio' && s.stationSlug ? stations.get(s.stationSlug) || { slug: s.stationSlug, name: s.stationSlug } : null,
         track: t ? { id: t.id, title: t.title, work: t.work_title, cover: coverUrl(t.cover_path) } : null,
+        nowTitle: s.nowTitle,
         position: s.position,
         onlineSince: new Date(s.firstSeen).toISOString(),
         lastSeen: new Date(s.lastSeen).toISOString(),
       };
     });
 
-    const listening = sessionsOut.filter((s) => s.playing && s.track);
+    const listening = sessionsOut.filter((s) => s.playing && (s.track || s.station));
     const nowTracks = new Map();
-    for (const s of listening) {
+    for (const s of listening.filter((x) => x.track)) {
       const k = s.track.id;
       nowTracks.set(k, { ...s.track, listeners: (nowTracks.get(k)?.listeners || 0) + 1 });
     }

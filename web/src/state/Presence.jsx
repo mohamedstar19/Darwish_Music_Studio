@@ -29,6 +29,7 @@ export function PresenceProvider({ children }) {
     playing: player.isPlaying,
     trackId: player.current?.id ?? null,
     stationSlug: player.mode === 'radio' ? player.radio?.slug : null,
+    nowTitle: player.mode === 'radio' && player.radio?.external ? player.radio.nowTitle || null : null,
     position: player.time,
   };
 
@@ -72,7 +73,7 @@ export function PresenceProvider({ children }) {
   useEffect(() => {
     const t = setTimeout(send, 400);
     return () => clearTimeout(t);
-  }, [player.isPlaying, player.current?.id, player.mode, location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [player.isPlaying, player.current?.id, player.current?.title, player.mode, location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const install = async () => {
     if (!promptEvent) return false;

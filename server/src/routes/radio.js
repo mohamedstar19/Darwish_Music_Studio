@@ -1,6 +1,9 @@
+import { Readable } from 'node:stream';
 import { requireUser } from '../auth.js';
 import { many, one, PLAYABLE, query, TRACK_SELECT } from '../db.js';
 import { listenerCount, nowPlaying, touchListener } from '../radio.js';
+import { nowTitle } from '../streams.js';
+import { addBandwidth } from './catalog.js';
 import { normAr, shapeStation, shapeTracks } from '../shape.js';
 import { cleanText, httpError, likePattern, toInt } from '../util.js';
 
@@ -29,8 +32,53 @@ export default async function radioRoutes(app) {
   app.get('/api/stations/:slug/now', async (request) => {
     const s = await activeStation(request.params.slug);
     touchListener(s.id, request.query.listener);
+    if (s.kind === 'external') {
+      if (!s.stream_url) return { station: shapeStation(s), listeners: listenerCount(s.id), empty: true };
+      return {
+        station: shapeStation(s),
+        listeners: listenerCount(s.id),
+        external: true,
+        empty: false,
+        streamUrl: s.stream_url,
+        isHls: /\.m3u8(\?|$)/i.test(s.stream_url),
+        nowTitle: await nowTitle(s),
+        serverTime: new Date().toISOString(),
+      };
+    }
     const live = await nowPlaying(s);
     return { station: shapeStation(s), listeners: listenerCount(s.id), ...live };
+  });
+
+  // Relay for external http:// streams so they also play on the https:// site
+  // (browsers block plain-http audio on secure pages). Uses the server's bandwidth.
+  app.get('/api/stations/:slug/stream', async (request, reply) => {
+    const s = await activeStation(request.params.slug);
+    if (s.kind !== 'external' || !s.stream_url || /\.m3u8(\?|$)/i.test(s.stream_url)) {
+      throw httpError(404, 'المحطة دي مش بث خارجي');
+    }
+    const ctrl = new AbortController();
+    request.raw.on('close', () => ctrl.abort());
+    let upstream;
+    try {
+      upstream = await fetch(s.stream_url, {
+        headers: { 'User-Agent': 'DarwishMusicStudio/1.0', 'Icy-MetaData': '0' },
+        redirect: 'follow',
+        signal: ctrl.signal,
+      });
+    } catch {
+      throw httpError(502, 'المحطة مش متاحة دلوقتي');
+    }
+    if (!upstream.ok || !upstream.body) throw httpError(502, 'المحطة مش متاحة دلوقتي');
+    const body = Readable.fromWeb(upstream.body);
+    let bytes = 0;
+    body.on('data', (chunk) => {
+      bytes += chunk.length;
+    });
+    body.on('close', () => addBandwidth(bytes));
+    body.on('error', () => {});
+    reply.header('Content-Type', upstream.headers.get('content-type') || 'audio/mpeg');
+    reply.header('Cache-Control', 'no-store');
+    return reply.send(body);
   });
 
   // Tracks a listener may request on this station.
@@ -70,7 +118,7 @@ export default async function radioRoutes(app) {
     { onRequest: requireUser, config: { rateLimit: { max: 5, timeWindow: '10 minutes' } } },
     async (request) => {
       const s = await activeStation(request.params.slug);
-      if (s.requests_mode === 'off') throw httpError(400, 'الطلبات مقفولة في المحطة دي');
+      if (s.requests_mode === 'off' || s.kind === 'external') throw httpError(400, 'الطلبات مقفولة في المحطة دي');
       const trackId = toInt(request.body?.trackId);
       const ok = await one(
         `SELECT t.id FROM tracks t JOIN station_tracks st ON st.track_id = t.id AND st.station_id = $1

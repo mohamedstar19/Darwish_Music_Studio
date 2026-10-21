@@ -232,42 +232,194 @@ export function Categories() {
 }
 
 // ---------- Stations ----------
+function StreamTest({ url, onInfo }) {
+  const [busy, setBusy] = useState(false);
+  const [info, setInfo] = useState(null);
+  const run = async () => {
+    if (!url) return;
+    setBusy(true);
+    setInfo(null);
+    try {
+      const r = await api.post('/api/admin/stations/test-stream', { url });
+      setInfo(r);
+      onInfo?.(r);
+    } catch (err) {
+      setInfo({ ok: false, error: err.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="stream-test">
+      <button type="button" className="btn btn-ghost btn-small" onClick={run} disabled={busy || !url}>
+        {busy ? 'بيختبر...' : 'اختبار الرابط'}
+      </button>
+      {info ? (
+        info.ok ? (
+          <div className="stream-ok">
+            <b>✓ الرابط شغال</b>
+            <span>
+              {[info.name, info.genre, info.bitrate ? `${info.bitrate} kbps` : null, info.isHls ? 'HLS' : info.contentType]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+            {info.title ? <span className="muted">بيذيع دلوقتي: {info.title}</span> : null}
+            {info.resolvedFrom ? <span className="muted">الرابط كان قائمة تشغيل، واستخدمنا رابط البث اللي جواها.</span> : null}
+          </div>
+        ) : (
+          <div className="stream-bad">
+            <b>✗ {info.error || 'الرابط مش شغال'}</b>
+            <span className="muted">
+              ممكن يشتغل في المتصفح برضه لو السيرفر بتاعه قديم (Shoutcast v1). احفظ وجرب تشغله من صفحة المحطة.
+            </span>
+          </div>
+        )
+      ) : null}
+    </div>
+  );
+}
+
+function BulkStations({ onClose, onDone }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [results, setResults] = useState(null);
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const r = await api.post('/api/admin/stations/bulk', { text });
+      setResults(r.results);
+      onDone();
+    } catch (err) {
+      setResults([{ ok: false, line: '', error: err.message }]);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title="إضافة كذا محطة بالروابط" onClose={onClose} wide>
+      {!results ? (
+        <form className="form" onSubmit={submit}>
+          <p className="muted small">
+            حط كل محطة في سطر. ممكن تكتب الرابط لوحده (هنجيب الاسم من المحطة نفسها)، أو الاسم وبعده | وبعدين الرابط. روابط
+            ‎.pls و ‎.m3u و ‎.m3u8 شغالة.
+          </p>
+          <textarea
+            className="input mono"
+            rows={9}
+            dir="ltr"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={'https://stream.example.com/live\nإذاعة الأغاني | https://radio.example.com/listen.pls\nAnime FM | https://example.com/hls/live.m3u8'}
+            required
+          />
+          <button className="btn btn-primary" disabled={busy || !text.trim()}>
+            {busy ? 'بيضيف ويختبر الروابط...' : 'إضافة المحطات'}
+          </button>
+        </form>
+      ) : (
+        <div className="bulk-results">
+          <p>
+            اتضاف {results.filter((r) => r.ok).length} من {results.length}
+          </p>
+          <ul className="plain-list">
+            {results.map((r, i) => (
+              <li key={i}>
+                {r.ok ? (
+                  <>
+                    <b>✓ {r.station.name}</b>
+                    {r.warning ? <span className="form-error small"> · اتضافت بس الاختبار قال: {r.warning}</span> : null}
+                  </>
+                ) : (
+                  <>
+                    <b className="form-error">✗</b> <span dir="ltr">{r.line}</span> <span className="muted small">{r.error}</span>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="btn btn-primary" onClick={onClose}>
+            تمام
+          </button>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 export function Stations() {
   const { data, loading, error, reload } = useFetch('/api/admin/stations');
   const [edit, setEdit] = useState(null);
+  const [bulk, setBulk] = useState(false);
   const save = useSaver(reload);
   if (loading && !data) return <Loading />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
 
+  const setE = (k) => (e) => setEdit((s) => ({ ...s, [k]: e?.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e }));
+
   const submit = async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
-    const f = Object.fromEntries(fd);
-    f.isActive = fd.get('isActive') === 'on';
-    f.shuffle = fd.get('shuffle') === 'on';
-    const r = await save(() => (edit.id ? api.patch(`/api/admin/stations/${edit.id}`, f) : api.post('/api/admin/stations', f)));
-    if (r) setEdit(null);
+    const logo = e.target.logo?.files?.[0];
+    const body = {
+      name: edit.name,
+      slug: edit.slug,
+      description: edit.description,
+      color: edit.color,
+      requestsMode: edit.kind === 'external' ? 'off' : edit.requestsMode,
+      shuffle: !!edit.shuffle,
+      isActive: !!edit.isActive,
+      kind: edit.kind,
+      streamUrl: edit.kind === 'external' ? edit.streamUrl : undefined,
+      homepage: edit.homepage || null,
+    };
+    const s = await save(() => (edit.id ? api.patch(`/api/admin/stations/${edit.id}`, body) : api.post('/api/admin/stations', body)));
+    if (s && logo) {
+      const fd = new FormData();
+      fd.append('file', logo);
+      await save(() => uploadWithProgress(`/api/admin/stations/${s.id}/logo`, fd), 'اللوجو اترفع');
+    }
+    if (s) setEdit(null);
+  };
+
+  // Fill empty fields from what the stream says about itself.
+  const applyInfo = (info) => {
+    if (!info?.ok) return;
+    setEdit((s) => ({
+      ...s,
+      name: s.name || (info.name && !/\.(mp3|aac|ogg|opus|m3u8?|pls)$/i.test(info.name) ? info.name : ''),
+      description: s.description || [info.genre, info.description].filter(Boolean).join(' · '),
+      homepage: s.homepage || info.homepage || '',
+      streamUrl: info.resolvedFrom ? info.url : s.streamUrl,
+    }));
   };
 
   return (
     <div className="admin-page">
       <div className="admin-head">
         <h1>محطات الراديو</h1>
-        <button type="button" className="btn btn-primary" onClick={() => setEdit({ isActive: true, shuffle: true, requestsMode: 'moderated' })}>
-          <Icon name="plus" /> محطة جديدة
-        </button>
+        <div className="page-header-actions" style={{ marginTop: 0 }}>
+          <button type="button" className="btn btn-ghost" onClick={() => setBulk(true)}>
+            <Icon name="list" /> إضافة كذا محطة بالروابط
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setEdit({ kind: 'external', isActive: true, shuffle: true, requestsMode: 'off', color: '#ff2d9b' })}
+          >
+            <Icon name="plus" /> محطة جديدة
+          </button>
+        </div>
       </div>
       <p className="muted">
-        المحطة بتشغل الأغاني المنشورة اللي متضافة ليها (من صفحة الأغاني أو أثناء الرفع). كل المستمعين بيسمعوا نفس الأغنية في نفس
-        الوقت.
+        نوعين: <b>رابط بث</b> لمحطة شغالة على الإنترنت، أو <b>من مكتبتك</b> بتشغل الأغاني اللي رفعتها وكل المستمعين بيسمعوا نفس
+        الأغنية في نفس اللحظة. ضيف بس المحطات اللي مسموحلك تعرضها.
       </p>
       <div className="table-wrap">
         <table className="table">
           <thead>
             <tr>
               <th>المحطة</th>
-              <th>أغاني</th>
-              <th>الطلبات</th>
+              <th>النوع</th>
               <th>الحالة</th>
               <th />
             </tr>
@@ -276,17 +428,40 @@ export function Stations() {
             {data.map((s) => (
               <tr key={s.id}>
                 <td>
-                  <span className="dot" style={{ background: s.color }} /> <b>{s.name}</b>
-                  <div className="muted small">{s.description}</div>
+                  <div className="cell-track">
+                    {s.logo ? <img className="station-logo" src={s.logo} alt="" /> : <span className="dot" style={{ background: s.color }} />}
+                    <span>
+                      <b>{s.name}</b>
+                      <small className="muted">{s.description}</small>
+                    </span>
+                  </div>
                 </td>
-                <td>{s.trackCount}</td>
-                <td>{{ off: 'مقفولة', moderated: 'بمراجعة', auto: 'تلقائي' }[s.requestsMode]}</td>
-                <td>{s.isActive ? <span className="status status-ready">شغالة</span> : <span className="status">متوقفة</span>}</td>
+                <td>
+                  {s.kind === 'external' ? (
+                    <>
+                      رابط بث
+                      <div className="muted small ellipsis" dir="ltr" title={s.streamUrl}>
+                        {s.streamUrl}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      من مكتبتك
+                      <div className="muted small">{s.trackCount} أغنية</div>
+                    </>
+                  )}
+                </td>
+                <td>{s.isActive ? <span className="status status-ready">ظاهرة</span> : <span className="status">مخفية</span>}</td>
                 <td className="nowrap">
-                  <button type="button" className="btn btn-ghost btn-small" onClick={() => save(() => api.post(`/api/admin/stations/${s.id}/skip`), 'اتنقلت للأغنية اللي بعدها')}>
-                    تخطي الأغنية
-                  </button>
-                  <button type="button" className="icon-btn" onClick={() => setEdit(s)} aria-label="تعديل">
+                  <Link to={`/radio/${s.slug}`} className="btn btn-ghost btn-small">
+                    فتح
+                  </Link>
+                  {s.kind !== 'external' ? (
+                    <button type="button" className="btn btn-ghost btn-small" onClick={() => save(() => api.post(`/api/admin/stations/${s.id}/skip`), 'اتنقلت للأغنية اللي بعدها')}>
+                      تخطي الأغنية
+                    </button>
+                  ) : null}
+                  <button type="button" className="icon-btn" onClick={() => setEdit({ ...s })} aria-label="تعديل">
                     <Icon name="edit" size={18} />
                   </button>
                 </td>
@@ -295,40 +470,83 @@ export function Stations() {
           </tbody>
         </table>
       </div>
+
+      {bulk ? <BulkStations onClose={() => setBulk(false)} onDone={reload} /> : null}
+
       {edit ? (
         <Modal title={edit.id ? `تعديل ${edit.name}` : 'محطة جديدة'} onClose={() => setEdit(null)}>
           <form className="form" onSubmit={submit}>
+            <div className="seg" role="radiogroup" aria-label="نوع المحطة">
+              <button type="button" className={edit.kind === 'external' ? 'on' : ''} onClick={() => setE('kind')('external')}>
+                رابط بث من الإنترنت
+              </button>
+              <button type="button" className={edit.kind !== 'external' ? 'on' : ''} onClick={() => setE('kind')('synced')}>
+                من أغاني مكتبتي
+              </button>
+            </div>
+
+            {edit.kind === 'external' ? (
+              <>
+                <label>
+                  رابط البث
+                  <input
+                    className="input"
+                    dir="ltr"
+                    value={edit.streamUrl || ''}
+                    onChange={setE('streamUrl')}
+                    placeholder="https://stream.example.com/live  أو  ‎.pls / .m3u / .m3u8"
+                    required
+                  />
+                </label>
+                <StreamTest url={edit.streamUrl} onInfo={applyInfo} />
+              </>
+            ) : null}
+
             <label>
               الاسم
-              <input name="name" className="input" defaultValue={edit.name || ''} required />
-            </label>
-            <label>
-              الرابط (بالإنجليزي)
-              <input name="slug" className="input" defaultValue={edit.slug || ''} dir="ltr" />
+              <input className="input" value={edit.name || ''} onChange={setE('name')} required />
             </label>
             <label>
               وصف
-              <input name="description" className="input" defaultValue={edit.description || ''} />
+              <input className="input" value={edit.description || ''} onChange={setE('description')} />
             </label>
+            {edit.kind === 'external' ? (
+              <label>
+                موقع المحطة (اختياري)
+                <input className="input" dir="ltr" value={edit.homepage || ''} onChange={setE('homepage')} />
+              </label>
+            ) : null}
             <div className="form-grid">
               <label>
                 اللون
-                <input name="color" type="color" className="input" defaultValue={edit.color || '#f97316'} />
+                <input type="color" className="input" value={edit.color || '#f97316'} onChange={setE('color')} />
               </label>
               <label>
-                طلبات المستمعين
-                <select name="requestsMode" className="input" defaultValue={edit.requestsMode}>
-                  <option value="moderated">بمراجعة الإدارة</option>
-                  <option value="auto">قبول تلقائي</option>
-                  <option value="off">مقفولة</option>
-                </select>
+                لوجو المحطة
+                <input name="logo" type="file" accept="image/*" className="input" />
               </label>
             </div>
-            <label className="check">
-              <input type="checkbox" name="shuffle" defaultChecked={edit.shuffle} /> ترتيب عشوائي (بيتغير كل دورة)
+            <label>
+              الرابط على موقعنا (بالإنجليزي، اختياري)
+              <input className="input" dir="ltr" value={edit.slug || ''} onChange={setE('slug')} placeholder="مثلاً: anime-fm" />
             </label>
+            {edit.kind !== 'external' ? (
+              <>
+                <label>
+                  طلبات المستمعين
+                  <select className="input" value={edit.requestsMode || 'moderated'} onChange={setE('requestsMode')}>
+                    <option value="moderated">بمراجعة الإدارة</option>
+                    <option value="auto">قبول تلقائي</option>
+                    <option value="off">مقفولة</option>
+                  </select>
+                </label>
+                <label className="check">
+                  <input type="checkbox" checked={!!edit.shuffle} onChange={setE('shuffle')} /> ترتيب عشوائي (بيتغير كل دورة)
+                </label>
+              </>
+            ) : null}
             <label className="check">
-              <input type="checkbox" name="isActive" defaultChecked={edit.isActive} /> المحطة شغالة وظاهرة
+              <input type="checkbox" checked={!!edit.isActive} onChange={setE('isActive')} /> المحطة ظاهرة للناس
             </label>
             <div className="edit-foot">
               {edit.id ? (

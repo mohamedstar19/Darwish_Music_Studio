@@ -31,6 +31,8 @@ export function TrackMeta({ track }) {
 export function FavoriteButton({ track, size = 18 }) {
   const { user, favoriteIds, toggleFavorite } = useAuth();
   const toast = useToast();
+  // Live external radio has no track to favorite.
+  if (!track?.id) return null;
   const on = favoriteIds.has(track.id);
   return (
     <button
@@ -332,9 +334,12 @@ export function StationCard({ station, onPlay }) {
   const live = player.mode === 'radio' && player.radio?.slug === station.slug;
   return (
     <div className={`station-card ${live ? 'live' : ''}`} style={{ '--station': station.color }}>
-      <Link to={`/radio/${station.slug}`} className="station-name">
-        {station.name}
-      </Link>
+      <div className="station-top">
+        {station.logo ? <img className="station-logo" src={station.logo} alt="" loading="lazy" /> : null}
+        <Link to={`/radio/${station.slug}`} className="station-name">
+          {station.name}
+        </Link>
+      </div>
       <p className="station-desc">{station.description}</p>
       <div className="station-foot">
         <button
