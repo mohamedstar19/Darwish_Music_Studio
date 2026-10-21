@@ -1,0 +1,55 @@
+name: darwish-music-studio
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dms
+      POSTGRES_USER: dms
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dms -d dms"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # No ports published: the database is only reachable from the app container.
+
+  app:
+    build: .
+    image: darwish-music-studio:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://dms:${POSTGRES_PASSWORD}@db:5432/dms
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-300}
+      AUDIO_BITRATE: ${AUDIO_BITRATE:-192k}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ${MEDIA_PATH:-./data/media}:/data/media
+    ports:
+      - "${APP_PORT:-8095}:8080"
+
+  # Optional: public HTTPS for dms.darwish-tech.com through a Cloudflare Tunnel,
+  # so no router ports need to be opened. Start with: docker compose --profile tunnel up -d
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.2
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - app
+
+volumes:
+  db-data:

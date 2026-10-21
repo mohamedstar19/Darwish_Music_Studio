@@ -1,0 +1,100 @@
+import bcrypt from 'bcryptjs';
+import { config } from './config.js';
+import { one } from './db.js';
+import { httpError } from './util.js';
+
+export const COOKIE_NAME = 'dms_token';
+const THIRTY_DAYS = 60 * 60 * 24 * 30;
+
+export function hashPassword(password) {
+  return bcrypt.hash(password, 11);
+}
+
+export function checkPassword(password, hash) {
+  return bcrypt.compare(password, hash);
+}
+
+export function validatePassword(password) {
+  if (typeof password !== 'string' || password.length < 8) {
+    throw httpError(400, 'كلمة المرور لازم تكون 8 حروف على الأقل');
+  }
+  if (password.length > 200) throw httpError(400, 'كلمة المرور طويلة جدًا');
+}
+
+export async function setAuthCookie(reply, user) {
+  const token = await reply.jwtSign({ sub: String(user.id) }, { expiresIn: '30d' });
+  reply.setCookie(COOKIE_NAME, token, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: config.cookieSecure,
+    maxAge: THIRTY_DAYS,
+  });
+}
+
+export function clearAuthCookie(reply) {
+  reply.clearCookie(COOKIE_NAME, { path: '/' });
+}
+
+export function publicUser(u) {
+  if (!u) return null;
+  return {
+    id: u.id,
+    email: u.email,
+    displayName: u.display_name,
+    role: u.role,
+    historyEnabled: u.history_enabled,
+    createdAt: u.created_at,
+  };
+}
+
+/** onRequest hook: sets request.currentUser to the signed-in user or null. */
+export async function attachUser(request) {
+  request.currentUser = null;
+  if (!request.cookies?.[COOKIE_NAME]) return;
+  try {
+    const payload = await request.jwtVerify();
+    const user = await one('SELECT * FROM users WHERE id = $1', [Number(payload.sub)]);
+    if (user && !user.is_disabled) request.currentUser = user;
+  } catch {
+    // Invalid or expired token: treat as signed out.
+  }
+}
+
+export async function requireUser(request) {
+  if (!request.currentUser) throw httpError(401, 'لازم تسجل الدخول الأول');
+}
+
+export async function requireEditor(request) {
+  await requireUser(request);
+  if (!['editor', 'admin'].includes(request.currentUser.role)) throw httpError(403, 'غير مسموح');
+}
+
+export async function requireAdmin(request) {
+  await requireUser(request);
+  if (request.currentUser.role !== 'admin') throw httpError(403, 'غير مسموح');
+}
+
+export function isStaff(user) {
+  return !!user && ['editor', 'admin'].includes(user.role);
+}
+
+/** Create the first admin from ADMIN_EMAIL / ADMIN_PASSWORD when no admin exists yet. */
+export async function ensureAdmin(log) {
+  const existing = await one("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+  if (existing) return;
+  if (!config.adminEmail || !config.adminPassword) {
+    log.warn('No admin user exists. Set ADMIN_EMAIL and ADMIN_PASSWORD to create one.');
+    return;
+  }
+  const email = config.adminEmail.trim().toLowerCase();
+  const hash = await hashPassword(config.adminPassword);
+  await one(
+    `INSERT INTO users (email, password_hash, display_name, role)
+     VALUES ($1, $2, 'Admin', 'admin')
+     ON CONFLICT (email) DO UPDATE SET role = 'admin', password_hash = EXCLUDED.password_hash
+     RETURNING id`,
+    [email, hash],
+  );
+  log.info(`Created admin user ${email}`);
+}

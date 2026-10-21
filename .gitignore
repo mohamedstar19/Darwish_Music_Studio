@@ -1,0 +1,14 @@
+node_modules/
+dist/
+data/
+backups/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+
+# Local-only files
+.claude/settings.local.json
+/Darwish_Music_Studio_Project_Plan.md

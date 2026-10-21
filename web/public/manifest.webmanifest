@@ -1,0 +1,22 @@
+{
+  "name": "Darwish Music Studio",
+  "short_name": "درويش",
+  "description": "ذكريات عايشة جوانا... وأغاني عمرها ما بتنسينا",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#120a26",
+  "theme_color": "#140c2b",
+  "categories": ["music", "entertainment"],
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "الراديو", "url": "/radio" },
+    { "name": "خمّن الشارة", "url": "/quiz" },
+    { "name": "ذكرياتي", "url": "/memories" }
+  ]
+}
