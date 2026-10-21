@@ -4,7 +4,7 @@ import { api, formatDuration } from '../api.js';
 import { CountUp, Cover, Empty, ErrorBox, Loading, Modal, PageHeader, Section } from '../components/common.jsx';
 import Icon from '../components/Icon.jsx';
 import { useTheme } from '../components/Layout.jsx';
-import { backgroundEnabled, BG_SETTING_EVENT, BG_SETTING_KEY } from '../components/SynthBackground.jsx';
+import BackgroundPicker from '../components/BackgroundPicker.jsx';
 import { PlaylistCard, TrackList } from '../components/Tracks.jsx';
 import { useFetch } from '../hooks.js';
 import { useAuth } from '../state/AuthContext.jsx';
@@ -480,7 +480,6 @@ function SettingsInner() {
   const { user, setUser } = useAuth();
   const toast = useToast();
   const [theme, setTheme] = useTheme();
-  const [bgOn, setBgOn] = useState(backgroundEnabled);
   const { canInstall, install, installed } = useInstall();
 
   const save = async (e) => {
@@ -549,23 +548,8 @@ function SettingsInner() {
             </button>
           ))}
         </div>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={bgOn}
-            onChange={(e) => {
-              const on = e.target.checked;
-              setBgOn(on);
-              try {
-                localStorage.setItem(BG_SETTING_KEY, on ? 'on' : 'off');
-              } catch {
-                // storage blocked: the switch still works for this visit
-              }
-              window.dispatchEvent(new Event(BG_SETTING_EVENT));
-            }}
-          />
-          خلفية السينث ويف المتحركة (بتتحرك مع الأغنية، في الثيم الليلي)
-        </label>
+        <h3>الخلفية المتحركة</h3>
+        <BackgroundPicker />
         <h3>التطبيق</h3>
         {installed ? (
           <p className="muted">التطبيق متثبت على الجهاز ده ✓</p>

@@ -50,7 +50,7 @@ export function Controls({ big = false }) {
   return (
     <div className={`controls ${big ? 'controls-big' : ''}`} dir="ltr">
       {!radio ? (
-        <button type="button" className={`icon-btn ${p.shuffle ? 'on' : ''}`} onClick={p.toggleShuffle} aria-pressed={p.shuffle} aria-label="عشوائي">
+        <button type="button" className={`icon-btn ctl-extra ${p.shuffle ? 'on' : ''}`} onClick={p.toggleShuffle} aria-pressed={p.shuffle} aria-label="عشوائي">
           <Icon name="shuffle" size={big ? 22 : 18} />
         </button>
       ) : null}
@@ -66,7 +66,7 @@ export function Controls({ big = false }) {
       {!radio ? (
         <button
           type="button"
-          className={`icon-btn repeat ${p.repeat !== 'off' ? 'on' : ''}`}
+          className={`icon-btn ctl-extra repeat ${p.repeat !== 'off' ? 'on' : ''}`}
           onClick={p.cycleRepeat}
           aria-label={p.repeat === 'one' ? 'تكرار الأغنية' : p.repeat === 'all' ? 'تكرار القائمة' : 'بدون تكرار'}
         >
@@ -246,7 +246,12 @@ function FullPlayer({ onClose }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // The page behind shouldn't scroll while the full player covers it.
+    document.documentElement.classList.add('no-scroll');
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.documentElement.classList.remove('no-scroll');
+    };
   }, [onClose]);
   if (!t) return null;
   return (

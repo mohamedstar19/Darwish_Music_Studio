@@ -213,7 +213,7 @@ function BottomNav() {
 export default function Layout() {
   const location = useLocation();
   useEffect(() => {
-    document.querySelector('.main')?.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0 });
   }, [location.pathname]);
   return (
     <div className="app">
