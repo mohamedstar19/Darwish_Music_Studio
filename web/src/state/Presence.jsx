@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api, listenerId } from '../api.js';
-import { usePlayer } from './PlayerContext.jsx';
+import { usePlayer, usePlayerTime } from './PlayerContext.jsx';
 
 const InstallContext = createContext({ canInstall: false, install: async () => false, installed: false });
 
@@ -19,6 +19,7 @@ function appEvent(kind) {
  */
 export function PresenceProvider({ children }) {
   const player = usePlayer();
+  const { time } = usePlayerTime();
   const location = useLocation();
   const [promptEvent, setPromptEvent] = useState(null);
   const [installed, setInstalled] = useState(isStandalone());
@@ -30,7 +31,7 @@ export function PresenceProvider({ children }) {
     trackId: player.current?.id ?? null,
     stationSlug: player.mode === 'radio' ? player.radio?.slug : null,
     nowTitle: player.mode === 'radio' && player.radio?.external ? player.radio.nowTitle || null : null,
-    position: player.time,
+    position: time,
   };
 
   useEffect(() => {

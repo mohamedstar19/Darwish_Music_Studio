@@ -212,7 +212,12 @@ export default function SynthBackground() {
     const meter = createAudioMeter(audio);
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const coarse = window.matchMedia?.('(pointer: coarse)').matches;
-    const minFrameMs = coarse ? 1000 / 30 : 0;
+    // Phones: 24fps, and no drawing while the page is being scrolled.
+    const minFrameMs = coarse ? 1000 / 24 : 0;
+    let scrollingUntil = 0;
+    const onScroll = () => {
+      scrollingUntil = performance.now() + 220;
+    };
     const s = { px: 0, py: 0, tx: 0, ty: 0, pointer: false, energy: 0.06, kick: 0 };
     let w = 0;
     let h = 0;
@@ -223,7 +228,7 @@ export default function SynthBackground() {
     let covered = false;
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1 : 2);
       w = window.innerWidth;
       h = window.innerHeight;
       canvas.width = Math.round(w * dpr);
@@ -260,6 +265,7 @@ export default function SynthBackground() {
       frameNo += 1;
       if (frameNo % 30 === 0) covered = !!document.querySelector('.full-player, .car-mode');
       if (covered) return;
+      if (coarse && now < scrollingUntil) return;
       if (now - lastDraw < minFrameMs) return;
       lastDraw = now;
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -279,6 +285,7 @@ export default function SynthBackground() {
     window.addEventListener('resize', resize);
     if (!reduce) {
       window.addEventListener('pointermove', onMove, { passive: true });
+      document.addEventListener('scroll', onScroll, { capture: true, passive: true });
       document.addEventListener('mouseleave', onLeave);
       raf = requestAnimationFrame(loop);
     }
@@ -286,6 +293,7 @@ export default function SynthBackground() {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
       window.removeEventListener('pointermove', onMove);
+      document.removeEventListener('scroll', onScroll, { capture: true });
       document.removeEventListener('mouseleave', onLeave);
       meter.destroy();
     };

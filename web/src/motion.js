@@ -29,9 +29,15 @@ const REVEAL = [
   '.car-station',
 ].join(',');
 
+// On phones, long lists (song rows, tables) skip the reveal: animating hundreds of rows while
+// scrolling is what makes a page feel heavy.
+const HEAVY_ON_PHONES = new Set(['.track-row', '.mini-row', '.top-list li', '.bar-row', '.table tbody tr']);
+
 export function startMotion() {
   if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return;
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const phone = window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth < 860;
+  const REVEAL_NOW = phone ? REVEAL.split(',').filter((s) => !HEAVY_ON_PHONES.has(s)).join(',') : REVEAL;
 
   const io = new IntersectionObserver(
     (entries) => {
@@ -62,8 +68,8 @@ export function startMotion() {
     io.observe(el);
   };
   const scan = (root) => {
-    if (root.matches?.(REVEAL)) track(root);
-    root.querySelectorAll?.(REVEAL).forEach(track);
+    if (root.matches?.(REVEAL_NOW)) track(root);
+    root.querySelectorAll?.(REVEAL_NOW).forEach(track);
   };
 
   const root = document.getElementById('root');

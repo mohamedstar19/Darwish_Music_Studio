@@ -6,11 +6,11 @@
 | البيان | القيمة |
 |---|---|
 | اسم الحزمة (Package name) | `com.darwishtech.dms` |
-| الإصدار | `1.0.0` (versionCode `1`) |
+| الإصدار | `1.0.1` (versionCode `2`) |
 | Target SDK | 36 (المطلوب من جوجل للتطبيقات الجديدة) |
 | أقل أندرويد | 7.0 (API 24) |
-| ملف الرفع للمتجر | `android/store/darwish-music-studio-1.0.0.aab` |
-| ملف للتجربة على موبايلك | `android/store/darwish-music-studio-1.0.0.apk` |
+| ملف الرفع للمتجر | `android/store/darwish-music-studio-1.0.1.aab` |
+| ملف للتجربة على موبايلك | `android/store/darwish-music-studio-1.0.1.apk` |
 
 ---
 
@@ -44,7 +44,7 @@
 
 1. **Test and release ← Testing ← Internal testing ← Create new release**.
 2. وافق على **Play App Signing** (جوجل بتحفظ مفتاح التوقيع النهائي).
-3. ارفع `android/store/darwish-music-studio-1.0.0.aab`.
+3. ارفع `android/store/darwish-music-studio-1.0.1.aab`.
 4. ضيف إيميلك في **Testers**، وافتح لينك التجربة من موبايلك ونزّل التطبيق.
 
 ## الخطوة 4 (مهمة): اربط التطبيق بالموقع

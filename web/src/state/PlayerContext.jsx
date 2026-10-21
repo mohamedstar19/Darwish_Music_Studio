@@ -508,6 +508,30 @@ export function PlayerProvider({ children }) {
     };
   }, [sleep, audio, volume]);
 
+  /** Stop and close the player completely (the ✕ on the player). */
+  const stop = useCallback(() => {
+    flushListen();
+    detachHls();
+    clearTimeout(radioRetry.current);
+    loadedTrackId.current = null;
+    pendingOffset.current = null;
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+    setQueue([]);
+    setIndex(0);
+    setMode('queue');
+    setRadio(null);
+    setIsPlaying(false);
+    setBuffering(false);
+    setTime(0);
+    setDuration(0);
+    setError(null);
+    setSleep(null);
+    saveStorage('dms.player', null);
+    if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
+  }, [audio, flushListen, detachHls]);
+
   // ---- Lock screen / headset controls ----
   useEffect(() => {
     if (!('mediaSession' in navigator) || !current) return;
@@ -521,6 +545,11 @@ export function PlayerProvider({ children }) {
     const ms = navigator.mediaSession;
     ms.setActionHandler('play', () => toggle());
     ms.setActionHandler('pause', () => audio.pause());
+    try {
+      ms.setActionHandler('stop', () => stop());
+    } catch {
+      // stop action not supported
+    }
     ms.setActionHandler('nexttrack', mode === 'radio' ? null : () => next());
     ms.setActionHandler('previoustrack', mode === 'radio' ? null : () => prev());
     try {
@@ -528,7 +557,7 @@ export function PlayerProvider({ children }) {
     } catch {
       // seekto not supported in this browser
     }
-  }, [current, mode, radio?.station?.name, toggle, next, prev, seek, audio]);
+  }, [current, mode, radio?.station?.name, toggle, next, prev, seek, audio, stop]);
 
   useEffect(() => {
     document.title = current ? `${current.title} · Darwish Music Studio` : 'Darwish Music Studio';
@@ -536,49 +565,70 @@ export function PlayerProvider({ children }) {
 
   // Remember the queue so a reload resumes where you were.
   useEffect(() => {
-    if (mode !== 'queue') return;
+    if (mode !== 'queue' || !queue.length) return;
     saveStorage('dms.player', { queue: queue.slice(0, 300), index, time: Math.floor(time) });
   }, [queue, index, mode, Math.floor(time / 5)]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const value = {
-    audio,
-    current,
-    queue,
-    index,
-    mode,
-    radio,
-    isPlaying,
-    time,
-    duration,
-    volume,
-    muted,
-    buffering,
-    error,
-    repeat,
-    shuffle,
-    sleep,
-    playList,
-    playTrack,
-    playNext,
-    addToQueue,
-    removeFromQueue,
-    jumpTo,
-    toggle,
-    next,
-    prev,
-    seek,
-    setVolume,
-    toggleMute,
-    toggleShuffle,
-    cycleRepeat,
-    setSleepTimer,
-    playStation,
-    surprise,
-  };
+  // The time changes 4 times a second while playing. It lives in its own context so only the
+  // progress bar re-renders for it, not every card and list on the page.
+  const value = useMemo(
+    () => ({
+      audio,
+      current,
+      queue,
+      index,
+      mode,
+      radio,
+      isPlaying,
+      duration,
+      volume,
+      muted,
+      buffering,
+      error,
+      repeat,
+      shuffle,
+      sleep,
+      playList,
+      playTrack,
+      playNext,
+      addToQueue,
+      removeFromQueue,
+      jumpTo,
+      toggle,
+      next,
+      prev,
+      seek,
+      setVolume,
+      toggleMute,
+      toggleShuffle,
+      cycleRepeat,
+      setSleepTimer,
+      playStation,
+      surprise,
+      stop,
+    }),
+    [
+      audio, current, queue, index, mode, radio, isPlaying, duration, volume, muted, buffering, error, repeat,
+      shuffle, sleep, playList, playTrack, playNext, addToQueue, removeFromQueue, jumpTo, toggle, next, prev,
+      seek, setVolume, toggleMute, toggleShuffle, cycleRepeat, setSleepTimer, playStation, surprise, stop,
+    ],
+  );
+  const timeValue = useMemo(() => ({ time, duration }), [time, duration]);
 
-  return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
+  return (
+    <PlayerContext.Provider value={value}>
+      <PlayerTimeContext.Provider value={timeValue}>{children}</PlayerTimeContext.Provider>
+    </PlayerContext.Provider>
+  );
 }
+
+const PlayerTimeContext = createContext({ time: 0, duration: 0 });
 
 export function usePlayer() {
   return useContext(PlayerContext);
+}
+
+/** Current playback position; only components that show it should use this. */
+export function usePlayerTime() {
+  return useContext(PlayerTimeContext);
 }

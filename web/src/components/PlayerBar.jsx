@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, formatTime } from '../api.js';
-import { usePlayer } from '../state/PlayerContext.jsx';
+import { usePlayer, usePlayerTime } from '../state/PlayerContext.jsx';
 import { Cover } from './common.jsx';
 import Icon from './Icon.jsx';
 import { FavoriteButton, TrackMeta } from './Tracks.jsx';
 
 function ProgressBar({ disabled }) {
   const p = usePlayer();
+  const { time } = usePlayerTime();
   const [drag, setDrag] = useState(null);
   const dur = p.duration || p.current?.duration || 0;
-  const value = drag ?? p.time;
+  const value = drag ?? time;
   return (
     <div className="progress" dir="ltr">
       <span className="time">{formatTime(value)}</span>
@@ -273,6 +274,16 @@ function FullPlayer({ onClose }) {
         <Controls big />
         <div className="full-extras">
           <SleepTimerMenu />
+          <button
+            type="button"
+            className="btn btn-ghost btn-small"
+            onClick={() => {
+              onClose();
+              p.stop();
+            }}
+          >
+            <Icon name="close" size={16} /> قفل المشغل
+          </button>
           <Volume />
         </div>
       </div>
@@ -294,6 +305,20 @@ function FullPlayer({ onClose }) {
         )}
       </div>
     </div>
+  );
+}
+
+function MiniProgress() {
+  const { time, duration } = usePlayerTime();
+  return <div className="pb-mini-progress" style={{ '--pct': `${duration ? (time / duration) * 100 : 0}%` }} />;
+}
+
+function CloseButton({ className = '' }) {
+  const p = usePlayer();
+  return (
+    <button type="button" className={`icon-btn pb-close ${className}`} onClick={p.stop} aria-label="قفل المشغل" title="قفل المشغل">
+      <Icon name="close" size={18} />
+    </button>
   );
 }
 
@@ -343,15 +368,17 @@ export default function PlayerBar() {
         <div className="pb-center">
           <Controls />
           <ProgressBar disabled={p.mode === 'radio'} />
+          <CloseButton className="pb-close-mobile" />
         </div>
         <div className="pb-side">
+          <CloseButton />
           <SleepTimerMenu />
           <button type="button" className="icon-btn" onClick={() => setFull(true)} aria-label="قائمة الانتظار">
             <Icon name="queue" size={18} />
           </button>
           <Volume />
         </div>
-        <div className="pb-mini-progress" style={{ '--pct': `${p.duration ? (p.time / p.duration) * 100 : 0}%` }} />
+        <MiniProgress />
       </div>
       {full ? <FullPlayer onClose={() => setFull(false)} /> : null}
     </>

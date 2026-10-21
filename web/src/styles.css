@@ -3125,3 +3125,74 @@ html.synth-bg .auth-card {
 .danger-box {
   border-color: color-mix(in srgb, var(--bad) 40%, transparent);
 }
+
+/* ===== Player close button ===== */
+.pb-close-mobile {
+  display: none;
+}
+
+/* ===== Phones: keep scrolling smooth ===== */
+/* Blur on top of the moving background makes the phone redraw the blur every frame.
+   On phones we use solid, slightly see-through colors instead. */
+@media (max-width: 860px), (pointer: coarse) {
+  html.synth-bg .sidebar,
+  html.synth-bg .topbar,
+  html.synth-bg .hero,
+  html.synth-bg .station-hero,
+  html.synth-bg .auth-card,
+  .player-bar,
+  .modal-backdrop {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  html.synth-bg .topbar {
+    background: rgba(14, 9, 48, 0.94);
+  }
+
+  html.synth-bg .hero,
+  html.synth-bg .station-hero {
+    background-color: rgba(33, 23, 92, 0.82);
+  }
+
+  html.synth-bg .auth-card {
+    background: rgba(22, 15, 66, 0.94);
+  }
+
+  .player-bar {
+    background: var(--bg-2);
+  }
+
+  .modal-backdrop {
+    background: rgba(5, 2, 15, 0.82);
+  }
+
+  /* Hover lifts and glows do nothing useful on touch screens. */
+  .card:hover,
+  .station-card:hover,
+  .category-tile:hover,
+  .track-row:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .main {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+}
+
+@media (max-width: 860px) {
+  .pb-close-mobile {
+    display: grid;
+  }
+
+  .pb-center {
+    flex-direction: row;
+    gap: 2px;
+  }
+
+  .pb-side .pb-close {
+    display: none;
+  }
+}

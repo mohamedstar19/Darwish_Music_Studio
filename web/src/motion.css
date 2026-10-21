@@ -15,7 +15,6 @@
   from {
     opacity: 0;
     transform: translateY(14px);
-    filter: blur(3px);
   }
 }
 
