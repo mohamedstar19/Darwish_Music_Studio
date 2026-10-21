@@ -4,13 +4,18 @@ set -euo pipefail
 
 APP_DIR="$HOME/apps/Darwish_Music_Studio"
 REPO="https://github.com/mohamedstar19/Darwish_Music_Studio.git"
+# Pick another port with:  APP_PORT=8097 ./scripts/server-setup.sh
+APP_PORT="${APP_PORT:-8095}"
 
 echo "== checks"
 command -v docker >/dev/null || { echo "NO_DOCKER"; exit 2; }
 docker compose version >/dev/null 2>&1 || { echo "NO_COMPOSE"; exit 2; }
 docker ps >/dev/null 2>&1 || { echo "NO_DOCKER_PERMISSION (user not in docker group)"; exit 3; }
 command -v git >/dev/null || { echo "NO_GIT"; exit 2; }
-if ss -ltn 2>/dev/null | grep -qE ':8095\b'; then echo "PORT_8095_BUSY"; exit 4; fi
+if [ ! -f "$APP_DIR/.env" ] && ss -ltn 2>/dev/null | grep -qE ":${APP_PORT}\b"; then
+  echo "PORT_${APP_PORT}_BUSY (run again with APP_PORT=<free port>)"
+  exit 4
+fi
 
 echo "== code"
 mkdir -p "$HOME/apps"
@@ -30,7 +35,7 @@ POSTGRES_PASSWORD=$(rnd 24)
 JWT_SECRET=$(rnd 32)
 ADMIN_EMAIL=admin@darwish-tech.com
 ADMIN_PASSWORD=$ADMIN_PW
-APP_PORT=8095
+APP_PORT=$APP_PORT
 MEDIA_PATH=./data/media
 COOKIE_SECURE=auto
 ALLOW_REGISTRATION=true
