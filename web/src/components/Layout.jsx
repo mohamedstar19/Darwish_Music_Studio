@@ -54,7 +54,7 @@ const MY_NAV = [
 ];
 
 function Sidebar() {
-  const { isStaff } = useAuth();
+  const { adminUrl } = useAuth();
   const [theme, setTheme] = useTheme();
   return (
     <aside className="sidebar">
@@ -75,8 +75,8 @@ function Sidebar() {
         <NavLink to="/car" className="nav-item">
           <Icon name="car" /> وضع السيارة
         </NavLink>
-        {isStaff ? (
-          <NavLink to="/admin" className="nav-item nav-admin">
+        {adminUrl ? (
+          <NavLink to={adminUrl} className="nav-item nav-admin">
             <Icon name="shield" /> لوحة الإدارة
           </NavLink>
         ) : null}

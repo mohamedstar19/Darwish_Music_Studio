@@ -8,6 +8,7 @@ import { useFetch } from '../hooks.js';
 import { useAuth } from '../state/AuthContext.jsx';
 import { useToast } from '../state/ToastContext.jsx';
 import { timeAgo } from './ui.jsx';
+import { useAdminBase } from './base.js';
 
 function useSaver(reload) {
   const toast = useToast();
@@ -641,6 +642,7 @@ export function Requests() {
 const REPORT_KIND = { rights: 'حقوق', broken: 'مش شغالة', metadata: 'بيانات غلط', other: 'أخرى' };
 
 export function Reports() {
+  const base = useAdminBase();
   const [status, setStatus] = useState('open');
   const { data, loading, error, reload } = useFetch(`/api/admin/reports?status=${status}`);
   const save = useSaver(reload);
@@ -667,7 +669,7 @@ export function Reports() {
           <div key={r.id} className={`card-box report report-${r.kind}`}>
             <div className="report-head">
               <span className={`rights ${r.kind === 'rights' ? 'rights-pending' : ''}`}>{REPORT_KIND[r.kind]}</span>
-              {r.track_id ? <Link to={`/admin/tracks?edit=${r.track_id}`}>{r.track_title}</Link> : <span className="muted">عام</span>}
+              {r.track_id ? <Link to={`${base}/tracks?edit=${r.track_id}`}>{r.track_title}</Link> : <span className="muted">عام</span>}
               <span className="muted small">{timeAgo(r.created_at)}</span>
             </div>
             <p>{r.message}</p>

@@ -26,4 +26,7 @@ export const config = {
   maxUploadMb: Number(env.MAX_UPLOAD_MB || 300),
   audioBitrate: env.AUDIO_BITRATE || '192k',
   ffmpegPath: env.FFMPEG_PATH || 'ffmpeg',
+  // Secret URL segment for the admin panel (https://site/<adminPath>). Only staff are told it,
+  // and every /api/admin call must carry it too. Falls back to "admin" when unset.
+  adminPath: (env.ADMIN_PATH || 'admin').replace(/[^A-Za-z0-9_-]/g, '') || 'admin',
 };

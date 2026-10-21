@@ -1,4 +1,4 @@
-import { hashPassword, publicUser, requireAdmin, requireEditor, validatePassword } from '../auth.js';
+import { hashPassword, publicUser, requireAdmin, requireAdminGate, requireEditor, validatePassword } from '../auth.js';
 import { many, one, PLAYABLE, query, tx } from '../db.js';
 import { enqueueTrack, queueLength, readTags, removeMedia, saveUpload } from '../media.js';
 import { coverUrl, shapeStation } from '../shape.js';
@@ -82,6 +82,11 @@ function assertPublishable(t) {
 }
 
 export default async function adminRoutes(app) {
+  // Every admin API call must carry the secret admin path; otherwise it looks like it doesn't exist.
+  app.addHook('onRequest', async (request) => {
+    if (request.url.startsWith('/api/admin/')) await requireAdminGate(request);
+  });
+
   const editor = { onRequest: requireEditor };
   const admin = { onRequest: requireAdmin };
 

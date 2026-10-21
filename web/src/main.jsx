@@ -1,7 +1,7 @@
-import { lazy, StrictMode, Suspense } from 'react';
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { Loading } from './components/common.jsx';
+import AdminGate from './admin/AdminGate.jsx';
 import Layout from './components/Layout.jsx';
 import { TrackActionsProvider } from './components/TrackActions.jsx';
 import { ArtistPage, CategoryPage, Explore, Search, WorkPage, Years } from './pages/Browse.jsx';
@@ -21,8 +21,6 @@ import { startMotion } from './motion.js';
 import './styles.css';
 import './motion.css';
 
-// The admin panel is only loaded for staff who open it.
-const Admin = lazy(() => import('./admin/Admin.jsx'));
 
 function App() {
   return (
@@ -36,14 +34,8 @@ function App() {
                   <Route path="/car" element={<Car />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
-                  <Route
-                    path="/admin/*"
-                    element={
-                      <Suspense fallback={<Loading />}>
-                        <Admin />
-                      </Suspense>
-                    }
-                  />
+                  {/* Unknown first-level paths: the secret admin panel, or a 404. */}
+                  <Route path="/:gate/*" element={<AdminGate />} />
                   <Route element={<Layout />}>
                     <Route index element={<Home />} />
                     <Route path="explore" element={<Explore />} />

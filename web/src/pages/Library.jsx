@@ -564,7 +564,7 @@ function SettingsInner() {
 
 /** Mobile "أنا" hub. */
 export function Me() {
-  const { user, ready, logout, isStaff } = useAuth();
+  const { user, ready, logout, adminUrl } = useAuth();
   const { canInstall, install } = useInstall();
   if (!ready) return <Loading />;
   if (!user) return <Navigate to="/login" replace />;
@@ -579,7 +579,7 @@ export function Me() {
         <Link to="/years"><Icon name="calendar" /> آلة الزمن</Link>
         <Link to="/car"><Icon name="car" /> وضع السيارة</Link>
         <Link to="/settings"><Icon name="settings" /> الإعدادات</Link>
-        {isStaff ? <Link to="/admin"><Icon name="shield" /> لوحة الإدارة</Link> : null}
+        {adminUrl ? <Link to={adminUrl}><Icon name="shield" /> لوحة الإدارة</Link> : null}
         {canInstall ? (
           <button type="button" onClick={install}>
             <Icon name="upload" /> ثبّت التطبيق

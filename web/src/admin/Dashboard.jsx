@@ -4,8 +4,10 @@ import { api, formatBytes, formatDuration, formatTime } from '../api.js';
 import { Cover, ErrorBox, Loading, Section } from '../components/common.jsx';
 import { useFetch } from '../hooks.js';
 import { BarChart, StatTile, timeAgo } from './ui.jsx';
+import { useAdminBase } from './base.js';
 
 export function Dashboard() {
+  const base = useAdminBase();
   const { data, loading, error, reload } = useFetch('/api/admin/stats');
   if (loading && !data) return <Loading />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
@@ -71,7 +73,7 @@ export function Dashboard() {
             <ul className="plain-list">
               {data.expiring.map((t) => (
                 <li key={t.id}>
-                  <Link to={`/admin/tracks?edit=${t.id}`}>{t.title}</Link> — <span className="muted">{t.license_expires_at}</span>
+                  <Link to={`${base}/tracks?edit=${t.id}`}>{t.title}</Link> — <span className="muted">{t.license_expires_at}</span>
                 </li>
               ))}
             </ul>

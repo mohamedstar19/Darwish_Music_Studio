@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api } from '../api.js';
+import { api, setAdminGate } from '../api.js';
 
 const AuthContext = createContext(null);
 
@@ -8,6 +8,9 @@ export function AuthProvider({ children }) {
   const [ready, setReady] = useState(false);
   const [allowRegistration, setAllowRegistration] = useState(true);
   const [favoriteIds, setFavoriteIds] = useState(() => new Set());
+
+  // Set during render (not in an effect) so admin pages already send it on their first request.
+  setAdminGate(user?.adminPath);
 
   const loadFavorites = useCallback(async () => {
     try {
@@ -82,6 +85,8 @@ export function AuthProvider({ children }) {
       allowRegistration,
       isStaff: !!user && ['editor', 'admin'].includes(user.role),
       isAdmin: user?.role === 'admin',
+      // Secret admin panel URL, known only to staff.
+      adminUrl: user?.adminPath ? `/${user.adminPath}` : null,
       login,
       register,
       logout,

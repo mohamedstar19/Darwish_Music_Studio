@@ -18,7 +18,7 @@ function greeting() {
 
 export default function Home() {
   const { data, error, loading, reload } = useFetch('/api/home');
-  const { user, isStaff } = useAuth();
+  const { user, isStaff, adminUrl } = useAuth();
   const player = usePlayer();
   const toast = useToast();
 
@@ -83,7 +83,7 @@ export default function Home() {
         <Empty icon="music" title="المكتبة لسه فاضية">
           {isStaff ? (
             <>
-              ابدأ من <Link to="/admin/tracks">لوحة الإدارة</Link> وارفع أول أغنية، وحدد حقوقها، وانشرها.
+              ابدأ من <Link to={`${adminUrl}/tracks`}>لوحة الإدارة</Link> وارفع أول أغنية، وحدد حقوقها، وانشرها.
             </>
           ) : (
             'قريب جدًا هيبقى فيه أغاني هنا.'

@@ -1,5 +1,15 @@
+// Secret admin path. Admin API calls must carry it (set once a staff user signs in).
+let adminGate = null;
+export function setAdminGate(path) {
+  adminGate = path || null;
+}
+
+function gateHeaders(url) {
+  return adminGate && url.startsWith('/api/admin/') ? { 'X-Admin-Gate': adminGate } : {};
+}
+
 async function request(method, url, body) {
-  const opts = { method, credentials: 'same-origin', headers: {} };
+  const opts = { method, credentials: 'same-origin', headers: { ...gateHeaders(url) } };
   if (body instanceof FormData) {
     opts.body = body;
   } else if (body !== undefined) {
@@ -41,6 +51,7 @@ export function uploadWithProgress(url, formData, onProgress) {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
     xhr.withCredentials = true;
+    Object.entries(gateHeaders(url)).forEach(([k, v]) => xhr.setRequestHeader(k, v));
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress?.(e.loaded / e.total);
     };

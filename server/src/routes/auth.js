@@ -4,6 +4,7 @@ import {
   checkPassword,
   clearAuthCookie,
   hashPassword,
+  isAdminPath,
   publicUser,
   requireUser,
   setAuthCookie,
@@ -52,6 +53,12 @@ export default async function authRoutes(app) {
     clearAuthCookie(reply);
     return { ok: true };
   });
+
+  // Lets the web app tell "this is the secret admin URL" apart from a random 404,
+  // so a signed-out admin can be sent to the login page. Rate limited against guessing.
+  app.post('/api/admin-gate', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => ({
+    ok: isAdminPath(request.body?.path),
+  }));
 
   app.get('/api/auth/me', async (request) => ({
     user: publicUser(request.currentUser),

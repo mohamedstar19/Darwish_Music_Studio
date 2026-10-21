@@ -13,6 +13,13 @@ if [ ! -f .env ]; then
 fi
 
 git pull --ff-only
+
+# Older installs: give the admin panel a secret URL if it doesn't have one yet.
+if ! grep -qE '^ADMIN_PATH=.+' .env; then
+  SECRET="$(openssl rand -hex 12 2>/dev/null || head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  printf '\nADMIN_PATH=dms-%s\n' "$SECRET" >> .env
+  echo "Admin panel moved to a secret URL. See: grep ADMIN_PATH .env"
+fi
 mkdir -p "$(grep -E '^MEDIA_PATH=' .env | cut -d= -f2- || echo ./data/media)" 2>/dev/null || true
 
 PROFILE=""

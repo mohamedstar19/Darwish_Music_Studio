@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { config } from './config.js';
 import { one } from './db.js';
@@ -46,7 +47,23 @@ export function publicUser(u) {
     role: u.role,
     historyEnabled: u.history_enabled,
     createdAt: u.created_at,
+    // Only staff learn where the admin panel lives.
+    ...(['editor', 'admin'].includes(u.role) ? { adminPath: config.adminPath } : {}),
   };
+}
+
+function digest(value) {
+  return crypto.createHash('sha256').update(String(value || '')).digest();
+}
+
+/** Constant-time check of a guessed admin path. */
+export function isAdminPath(value) {
+  return crypto.timingSafeEqual(digest(value), digest(config.adminPath));
+}
+
+/** onRequest hook for /api/admin/*: unknown unless the secret path is sent along. */
+export async function requireAdminGate(request) {
+  if (!isAdminPath(request.headers['x-admin-gate'])) throw httpError(404, 'غير موجود');
 }
 
 /** onRequest hook: sets request.currentUser to the signed-in user or null. */
