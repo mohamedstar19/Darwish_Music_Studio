@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CountUp } from '../components/common.jsx';
 
 /** Single-series column chart with a hover tooltip per bar. */
 export function BarChart({ data, valueKey, labelKey, format = (v) => v, height = 140, label }) {
@@ -40,7 +41,9 @@ export function BarChart({ data, valueKey, labelKey, format = (v) => v, height =
 export function StatTile({ label, value, hint, tone }) {
   return (
     <div className={`stat ${tone ? `stat-${tone}` : ''}`}>
-      <b>{value}</b>
+      <b>
+        <CountUp value={value} />
+      </b>
       <span>{label}</span>
       {hint ? <small className="muted">{hint}</small> : null}
     </div>

@@ -234,7 +234,7 @@ function FullPlayer({ onClose }) {
   }, [onClose]);
   if (!t) return null;
   return (
-    <div className="full-player" role="dialog" aria-label="المشغل الكامل">
+    <div className={`full-player ${p.isPlaying ? 'playing' : ''}`} role="dialog" aria-label="المشغل الكامل">
       <div className="full-bg" style={t.cover ? { backgroundImage: `url(${t.cover})` } : undefined} />
       <button type="button" className="icon-btn full-close" onClick={onClose} aria-label="تصغير المشغل">
         <Icon name="chevron" size={28} />
@@ -298,14 +298,14 @@ export default function PlayerBar() {
 
   return (
     <>
-      <div className={`player-bar ${p.mode === 'radio' ? 'is-radio' : ''}`}>
+      <div className={`player-bar ${p.mode === 'radio' ? 'is-radio' : ''} ${p.isPlaying ? 'playing' : ''}`}>
         {p.error ? <div className="player-error">{p.error}</div> : null}
         <div className="pb-now">
           <button type="button" className="pb-cover" onClick={() => setFull(true)} aria-label="فتح المشغل الكامل">
             <Cover src={t?.cover} size={56} seed={t?.id} />
           </button>
           <div className="pb-text">
-            <button type="button" className="pb-title" onClick={() => setFull(true)}>
+            <button type="button" className="pb-title" key={t?.id || 'radio'} onClick={() => setFull(true)}>
               {t?.title || (p.radio?.loading ? 'بيتصل بالمحطة...' : p.radio?.station?.name)}
             </button>
             {p.mode === 'radio' ? (

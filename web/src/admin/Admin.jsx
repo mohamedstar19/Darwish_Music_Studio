@@ -42,6 +42,7 @@ export default function Admin() {
         </nav>
       </aside>
       <main className="admin-main">
+        <div key={location.pathname} className="page-anim">
         <Routes>
           <Route index element={<Dashboard />} />
           <Route path="live" element={<Live />} />
@@ -56,6 +57,7 @@ export default function Admin() {
           {isAdmin ? <Route path="users" element={<Users />} /> : null}
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
+        </div>
       </main>
     </div>
   );

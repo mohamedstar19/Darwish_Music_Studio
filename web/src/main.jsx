@@ -17,7 +17,9 @@ import { AuthProvider } from './state/AuthContext.jsx';
 import { PlayerProvider } from './state/PlayerContext.jsx';
 import { PresenceProvider } from './state/Presence.jsx';
 import { ToastProvider } from './state/ToastContext.jsx';
+import { startMotion } from './motion.js';
 import './styles.css';
+import './motion.css';
 
 // The admin panel is only loaded for staff who open it.
 const Admin = lazy(() => import('./admin/Admin.jsx'));
@@ -80,6 +82,8 @@ createRoot(document.getElementById('root')).render(
     <App />
   </StrictMode>,
 );
+
+startMotion();
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {

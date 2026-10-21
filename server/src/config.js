@@ -15,7 +15,9 @@ export const config = {
   host: env.HOST || '0.0.0.0',
   databaseUrl: required('DATABASE_URL'),
   jwtSecret: required('JWT_SECRET'),
-  cookieSecure: env.COOKIE_SECURE === 'true',
+  // 'auto' (default): secure cookie when the request came over HTTPS (e.g. via Cloudflare),
+  // plain cookie on the LAN address over HTTP. 'true'/'false' force it.
+  cookieSecure: ['true', 'false'].includes(env.COOKIE_SECURE) ? env.COOKIE_SECURE === 'true' : 'auto',
   mediaDir: path.resolve(env.MEDIA_DIR || './data/media'),
   webDir: path.resolve(env.WEB_DIR || '../web/dist'),
   adminEmail: env.ADMIN_EMAIL || '',

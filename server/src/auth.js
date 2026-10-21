@@ -23,11 +23,12 @@ export function validatePassword(password) {
 
 export async function setAuthCookie(reply, user) {
   const token = await reply.jwtSign({ sub: String(user.id) }, { expiresIn: '30d' });
+  const secure = config.cookieSecure === 'auto' ? reply.request.protocol === 'https' : config.cookieSecure;
   reply.setCookie(COOKIE_NAME, token, {
     path: '/',
     httpOnly: true,
     sameSite: 'lax',
-    secure: config.cookieSecure,
+    secure,
     maxAge: THIRTY_DAYS,
   });
 }

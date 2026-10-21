@@ -1,4 +1,39 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+/** Animates a number from its previous value to the new one. Non-numbers render as-is. */
+export function CountUp({ value, duration = 900 }) {
+  const isNum = typeof value === 'number' && Number.isFinite(value);
+  const [shown, setShown] = useState(isNum ? 0 : value);
+  const from = useRef(0);
+  useEffect(() => {
+    if (!isNum) {
+      setShown(value);
+      return undefined;
+    }
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const start = from.current;
+    if (reduce || start === value) {
+      setShown(value);
+      from.current = value;
+      return undefined;
+    }
+    let raf;
+    const t0 = performance.now();
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / duration);
+      const eased = 1 - (1 - p) ** 3;
+      setShown(Math.round(start + (value - start) * eased));
+      if (p < 1) raf = requestAnimationFrame(step);
+      else from.current = value;
+    };
+    raf = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(raf);
+      from.current = value;
+    };
+  }, [value, isNum, duration]);
+  return <>{isNum ? shown.toLocaleString('en-US') : shown}</>;
+}
 import { Link } from 'react-router-dom';
 import Icon from './Icon.jsx';
 

@@ -222,7 +222,9 @@ export default function Layout() {
       <div className="main-col">
         <TopBar />
         <main className="main">
-          <Outlet />
+          <div key={location.pathname} className="page-anim">
+            <Outlet />
+          </div>
         </main>
       </div>
       <PlayerBar />

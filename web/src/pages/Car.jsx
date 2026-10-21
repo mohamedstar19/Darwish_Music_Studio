@@ -14,7 +14,7 @@ export default function Car() {
   const radio = p.mode === 'radio';
 
   return (
-    <div className="car-mode">
+    <div className={`car-mode ${p.isPlaying ? 'playing' : ''}`}>
       <div className="car-top">
         <Link to="/" className="btn btn-ghost">
           <Icon name="close" /> خروج

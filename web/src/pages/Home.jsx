@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { Empty, ErrorBox, Loading, Section } from '../components/common.jsx';
 import Icon from '../components/Icon.jsx';
@@ -39,7 +40,16 @@ export default function Home() {
       <section className="hero">
         <div className="hero-text">
           <div className="kicker">{greeting()}{user ? `، ${user.displayName}` : ''}</div>
-          <h1>ذكريات عايشة جوانا... وأغاني عمرها ما بتنسينا</h1>
+          <h1>
+            {'ذكريات عايشة جوانا... وأغاني عمرها ما بتنسينا'.split(' ').map((w, i) => (
+              <Fragment key={i}>
+                {i ? ' ' : null}
+                <span className="word" style={{ '--i': i }}>
+                  {w}
+                </span>
+              </Fragment>
+            ))}
+          </h1>
           <p className="muted" dir="ltr" style={{ textAlign: 'right' }}>
             Your Memories. Your Music. Your Universe.
           </p>

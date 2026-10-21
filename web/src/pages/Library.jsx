@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { api, formatDuration } from '../api.js';
-import { Cover, Empty, ErrorBox, Loading, Modal, PageHeader, Section } from '../components/common.jsx';
+import { CountUp, Cover, Empty, ErrorBox, Loading, Modal, PageHeader, Section } from '../components/common.jsx';
 import Icon from '../components/Icon.jsx';
 import { useTheme } from '../components/Layout.jsx';
 import { PlaylistCard, TrackList } from '../components/Tracks.jsx';
@@ -338,11 +338,15 @@ function MemoriesInner() {
         <>
           <div className="stat-row">
             <div className="stat">
-              <b>{t.songs}</b>
+              <b>
+                <CountUp value={t.songs} />
+              </b>
               <span>أغنية مختلفة</span>
             </div>
             <div className="stat">
-              <b>{t.plays}</b>
+              <b>
+                <CountUp value={t.plays} />
+              </b>
               <span>مرة استماع</span>
             </div>
             <div className="stat">

@@ -5,6 +5,29 @@ import { Cover, Empty, Loading } from '../components/common.jsx';
 import Icon from '../components/Icon.jsx';
 import { usePlayer } from '../state/PlayerContext.jsx';
 
+const CONFETTI_COLORS = ['#ff8a3d', '#ff4fa3', '#ffd166', '#34d399', '#60a5fa', '#a78bfa'];
+
+function Confetti() {
+  const pieces = Array.from({ length: 28 }, (_, i) => {
+    const angle = (i / 28) * Math.PI * 2;
+    const dist = 120 + Math.random() * 120;
+    return {
+      '--c': CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      '--x': `${Math.cos(angle) * dist}px`,
+      '--y': `${Math.sin(angle) * dist + 80}px`,
+      '--r': `${Math.round(Math.random() * 720 - 360)}deg`,
+      '--d': `${Math.random() * 120}ms`,
+    };
+  });
+  return (
+    <div className="confetti" aria-hidden="true">
+      {pieces.map((style, i) => (
+        <i key={i} style={style} />
+      ))}
+    </div>
+  );
+}
+
 /** خمّن الشارة: hear the first seconds of a theme song and guess the show. */
 export default function Quiz() {
   const player = usePlayer();
@@ -133,6 +156,7 @@ export default function Quiz() {
             );
           })}
         </div>
+        {answer?.correct ? <Confetti key={score.total} /> : null}
         {answer ? (
           <div className="quiz-result">
             <h3>{answer.correct ? 'برافو! 🎉' : 'قربت! 😅'}</h3>
