@@ -485,6 +485,8 @@ export async function startIdentifyJob({ scope = 'suspicious' } = {}) {
         } else {
           const useful = r.candidates.filter((c) => c.confidence >= 0.5);
           const unchanged = best && nameSim(best.title, t.title) >= 0.9 && (!best.artist || !t.artist || nameSim(best.artist, t.artist) >= 0.8);
+          // Name already right: still take the year when the match is sure.
+          if (unchanged && !t.year && best.year && best.confidence >= 0.9) await applyName(t.id, { year: best.year });
           const status = useful.length && !unchanged ? 'suggested' : 'none';
           await query(
             `UPDATE tracks SET identify_status = $2, identify_suggestion = $3, identified_at = now() WHERE id = $1`,
