@@ -2,7 +2,11 @@ import { config } from '../config.js';
 import { one } from '../db.js';
 import {
   checkPassword,
+  checkPasswordOrDummy,
   clearAuthCookie,
+  loginFailed,
+  loginLocked,
+  loginSucceeded,
   hashPassword,
   isAdminPath,
   publicUser,
@@ -13,6 +17,7 @@ import {
 import { cleanText, httpError } from '../util.js';
 
 const authLimit = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
+const registerLimit = { config: { rateLimit: { max: 5, timeWindow: '1 hour' } } };
 
 function normalizeEmail(email) {
   const e = String(email || '').trim().toLowerCase();
@@ -21,7 +26,7 @@ function normalizeEmail(email) {
 }
 
 export default async function authRoutes(app) {
-  app.post('/api/auth/register', authLimit, async (request, reply) => {
+  app.post('/api/auth/register', registerLimit, async (request, reply) => {
     if (!config.allowRegistration) throw httpError(403, 'التسجيل مقفول حاليًا');
     const { email, password, displayName } = request.body || {};
     const e = normalizeEmail(email);
@@ -39,10 +44,15 @@ export default async function authRoutes(app) {
 
   app.post('/api/auth/login', authLimit, async (request, reply) => {
     const { email, password } = request.body || {};
-    const user = await one('SELECT * FROM users WHERE email = $1', [String(email || '').trim().toLowerCase()]);
-    if (!user || !(await checkPassword(String(password || ''), user.password_hash))) {
+    const e = String(email || '').trim().toLowerCase().slice(0, 200);
+    const locked = loginLocked(e);
+    if (locked) throw httpError(429, `محاولات غلط كتير على الحساب ده. جرب بعد ${locked} دقيقة.`);
+    const user = await one('SELECT * FROM users WHERE email = $1', [e]);
+    if (!(await checkPasswordOrDummy(String(password || '').slice(0, 200), user?.password_hash))) {
+      loginFailed(e);
       throw httpError(401, 'البريد أو كلمة المرور غلط');
     }
+    loginSucceeded(e);
     if (user.is_disabled) throw httpError(403, 'الحساب ده موقوف');
     await one('UPDATE users SET last_login_at = now() WHERE id = $1 RETURNING id', [user.id]);
     await setAuthCookie(reply, user);
@@ -81,7 +91,7 @@ export default async function authRoutes(app) {
     return { ok: true };
   });
 
-  app.patch('/api/auth/me', { onRequest: requireUser }, async (request) => {
+  app.patch('/api/auth/me', { onRequest: requireUser, config: { rateLimit: { max: 10, timeWindow: '10 minutes' } } }, async (request, reply) => {
     const u = request.currentUser;
     const { displayName, historyEnabled, currentPassword, newPassword } = request.body || {};
     let passwordHash = u.password_hash;
@@ -101,6 +111,8 @@ export default async function authRoutes(app) {
         passwordHash,
       ],
     );
+    // Other devices are signed out by the password change; keep this one signed in.
+    if (newPassword) await setAuthCookie(reply, updated);
     return { user: publicUser(updated) };
   });
 }

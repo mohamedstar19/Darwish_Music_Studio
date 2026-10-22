@@ -3,6 +3,7 @@ import { requireUser } from '../auth.js';
 import { many, one, PLAYABLE, query, TRACK_SELECT } from '../db.js';
 import { listenerCount, nowPlaying, touchListener } from '../radio.js';
 import { nowTitle } from '../streams.js';
+import { clientIp, safeFetch } from '../netguard.js';
 import { addBandwidth } from './catalog.js';
 import { normAr, shapeStation, shapeTracks } from '../shape.js';
 import { cleanText, httpError, likePattern, toInt } from '../util.js';
@@ -51,24 +52,51 @@ export default async function radioRoutes(app) {
 
   // Relay for external http:// streams so they also play on the https:// site
   // (browsers block plain-http audio on secure pages). Uses the server's bandwidth.
+  // Each relayed listener holds a connection and uses upload bandwidth: cap them.
+  const relayByIp = new Map();
+  let relayTotal = 0;
+  const MAX_RELAYS = 80;
+  const MAX_RELAYS_PER_IP = 3;
+
   app.get('/api/stations/:slug/stream', async (request, reply) => {
     const s = await activeStation(request.params.slug);
     if (s.kind !== 'external' || !s.stream_url || /\.m3u8(\?|$)/i.test(s.stream_url)) {
       throw httpError(404, 'المحطة دي مش بث خارجي');
     }
+    const ip = clientIp(request);
+    if (relayTotal >= MAX_RELAYS || (relayByIp.get(ip) || 0) >= MAX_RELAYS_PER_IP) {
+      throw httpError(429, 'في ضغط على البث دلوقتي، جرب كمان شوية');
+    }
+    relayTotal += 1;
+    relayByIp.set(ip, (relayByIp.get(ip) || 0) + 1);
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      relayTotal -= 1;
+      const n = (relayByIp.get(ip) || 1) - 1;
+      if (n > 0) relayByIp.set(ip, n);
+      else relayByIp.delete(ip);
+    };
     const ctrl = new AbortController();
-    request.raw.on('close', () => ctrl.abort());
+    request.raw.on('close', () => {
+      ctrl.abort();
+      release();
+    });
     let upstream;
     try {
-      upstream = await fetch(s.stream_url, {
+      upstream = await safeFetch(s.stream_url, {
         headers: { 'User-Agent': 'DarwishMusicStudio/1.0', 'Icy-MetaData': '0' },
-        redirect: 'follow',
         signal: ctrl.signal,
       });
     } catch {
+      release();
       throw httpError(502, 'المحطة مش متاحة دلوقتي');
     }
-    if (!upstream.ok || !upstream.body) throw httpError(502, 'المحطة مش متاحة دلوقتي');
+    if (!upstream.ok || !upstream.body) {
+      release();
+      throw httpError(502, 'المحطة مش متاحة دلوقتي');
+    }
     const body = Readable.fromWeb(upstream.body);
     let bytes = 0;
     body.on('data', (chunk) => {

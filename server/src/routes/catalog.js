@@ -186,7 +186,7 @@ export default async function catalogRoutes(app) {
     return { tracks: shapeTracks(tracks), works: worksRows.map(shapeWork) };
   });
 
-  app.get('/api/search', async (request) => {
+  app.get('/api/search', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request) => {
     const q = normAr(request.query.q).slice(0, 100);
     if (!q) return { tracks: [], works: [], artists: [] };
     const pattern = likePattern(q);
@@ -257,7 +257,7 @@ export default async function catalogRoutes(app) {
   });
 
   // Download is offered only for tracks whose license includes "download".
-  app.get('/api/tracks/:id/download', async (request, reply) => {
+  app.get('/api/tracks/:id/download', { config: { rateLimit: { max: 20, timeWindow: '10 minutes' } } }, async (request, reply) => {
     if (!request.currentUser) throw httpError(401, 'سجل دخول عشان تنزّل الأغنية');
     const t = await one(
       `SELECT t.id, t.title, t.audio_path, t.file_size FROM tracks t
@@ -278,7 +278,7 @@ export default async function catalogRoutes(app) {
     return reply.sendFile(t.audio_path, dirs.audio);
   });
 
-  app.get('/api/tracks/:id/stream', async (request, reply) => {
+  app.get('/api/tracks/:id/stream', { config: { rateLimit: { max: 150, timeWindow: '1 minute' } } }, async (request, reply) => {
     const t = await one(
       `SELECT t.id, t.audio_path, t.file_size, ${PLAYABLE} AS playable FROM tracks t WHERE t.id = $1`,
       [toInt(request.params.id)],

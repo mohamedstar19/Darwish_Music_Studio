@@ -15,6 +15,42 @@ export function checkPassword(password, hash) {
   return bcrypt.compare(password, hash);
 }
 
+// Compared against when the email doesn't exist, so both cases take the same time
+// (otherwise response time would tell an attacker which emails are registered).
+const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 11);
+export function checkPasswordOrDummy(password, hash) {
+  return bcrypt.compare(password, hash || DUMMY_HASH).then((ok) => ok && !!hash);
+}
+
+/*
+ * Per-account lock after repeated wrong passwords. The per-IP limit alone isn't enough:
+ * an attacker with many addresses could keep guessing one account.
+ */
+const failures = new Map(); // email -> { n, first, lockedUntil }
+const MAX_FAILS = 8;
+const FAIL_WINDOW = 15 * 60 * 1000;
+
+export function loginLocked(email) {
+  const f = failures.get(email);
+  return !!f && f.lockedUntil > Date.now() ? Math.ceil((f.lockedUntil - Date.now()) / 60000) : 0;
+}
+
+export function loginFailed(email) {
+  const now = Date.now();
+  let f = failures.get(email);
+  if (!f || now - f.first > FAIL_WINDOW) f = { n: 0, first: now, lockedUntil: 0 };
+  f.n += 1;
+  if (f.n >= MAX_FAILS) f.lockedUntil = now + FAIL_WINDOW;
+  failures.set(email, f);
+  if (failures.size > 10000) {
+    for (const [k, v] of failures) if (now - v.first > FAIL_WINDOW && v.lockedUntil < now) failures.delete(k);
+  }
+}
+
+export function loginSucceeded(email) {
+  failures.delete(email);
+}
+
 export function validatePassword(password) {
   if (typeof password !== 'string' || password.length < 8) {
     throw httpError(400, 'كلمة المرور لازم تكون 8 حروف على الأقل');
@@ -72,8 +108,12 @@ export async function attachUser(request) {
   if (!request.cookies?.[COOKIE_NAME]) return;
   try {
     const payload = await request.jwtVerify();
+    if (!/^\d+$/.test(String(payload.sub || ''))) return;
     const user = await one('SELECT * FROM users WHERE id = $1', [Number(payload.sub)]);
-    if (user && !user.is_disabled) request.currentUser = user;
+    if (!user || user.is_disabled) return;
+    // Signed in before the password was changed: no longer valid.
+    if (user.password_changed_at && (payload.iat || 0) < Math.floor(new Date(user.password_changed_at).getTime() / 1000)) return;
+    request.currentUser = user;
   } catch {
     // Invalid or expired token: treat as signed out.
   }

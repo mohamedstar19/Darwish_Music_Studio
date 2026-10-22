@@ -1,11 +1,17 @@
+import crypto from 'node:crypto';
+import { config } from '../config.js';
 import { many, PLAYABLE, TRACK_SELECT } from '../db.js';
 import { shapeTrack } from '../shape.js';
-import { httpError } from '../util.js';
+import { httpError, toInt } from '../util.js';
 
 /*
  * "خمّن الشارة": play the first seconds of a theme song, pick which show it belongs to.
  * The correct answer travels inside a signed token, so it is checked on the server.
  */
+function answerHash(trackId, workId) {
+  return crypto.createHmac('sha256', config.jwtSecret).update(`quiz:${trackId}:${workId}`).digest('hex').slice(0, 24);
+}
+
 export default async function quizRoutes(app) {
   app.get('/api/quiz/next', async (request) => {
     const category = request.query.category || null;
@@ -25,7 +31,8 @@ export default async function quizRoutes(app) {
     );
     if (decoys.length < 1) throw httpError(404, 'محتاجين على الأقل عملين مختلفين عشان اللعبة تشتغل');
     const choices = [...decoys, { id: pick.work_id, title: pick.work_title }].sort(() => Math.random() - 0.5);
-    const token = app.jwt.sign({ q: pick.id, a: pick.work_id }, { expiresIn: '10m' });
+    // The answer is only stored as a keyed hash: the token can be read in the browser.
+    const token = app.jwt.sign({ q: pick.id, h: answerHash(pick.id, pick.work_id) }, { expiresIn: '10m' });
     return {
       token,
       trackId: pick.id,
@@ -43,9 +50,10 @@ export default async function quizRoutes(app) {
       throw httpError(400, 'السؤال انتهى، جرب سؤال جديد');
     }
     const [track] = await many(`${TRACK_SELECT} WHERE t.id = $1`, [payload.q]);
+    if (!track || !payload.h) throw httpError(400, 'السؤال انتهى، جرب سؤال جديد');
     return {
-      correct: Number(choiceId) === payload.a,
-      correctWorkId: payload.a,
+      correct: answerHash(payload.q, toInt(choiceId)) === payload.h,
+      correctWorkId: track.work_id,
       track: shapeTrack(track),
     };
   });

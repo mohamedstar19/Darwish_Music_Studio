@@ -9,6 +9,7 @@ import fastifyStatic from '@fastify/static';
 import { config } from './config.js';
 import { migrate, pool } from './db.js';
 import { attachUser, COOKIE_NAME, ensureAdmin } from './auth.js';
+import { clientIp, isLocalPeer } from './netguard.js';
 import { dirs, ensureMediaDirs, resumePendingJobs } from './media.js';
 import authRoutes from './routes/auth.js';
 import catalogRoutes from './routes/catalog.js';
@@ -19,14 +20,52 @@ import adminRoutes from './routes/admin.js';
 
 const app = Fastify({
   logger: { level: process.env.LOG_LEVEL || 'info' },
-  trustProxy: true,
+  // Only the Cloudflare tunnel / local machine may say "this came over https".
+  trustProxy: (address) => isLocalPeer(address),
   bodyLimit: 2 * 1024 * 1024,
 });
 
 await app.register(cookie);
 await app.register(jwt, { secret: config.jwtSecret, cookie: { cookieName: COOKIE_NAME, signed: false } });
 await app.register(multipart, { limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: 2 } });
-await app.register(rateLimit, { global: false });
+// Every API call is limited per visitor (real IP, see netguard.js); some routes set tighter limits.
+await app.register(rateLimit, {
+  global: true,
+  max: 300,
+  timeWindow: '1 minute',
+  keyGenerator: clientIp,
+  // Admin calls already need a staff sign-in and the secret path; bulk uploads send many requests.
+  allowList: (request) => !request.url.startsWith('/api/') || request.url === '/api/health' || request.url.startsWith('/api/admin/'),
+  errorResponseBuilder: (request, ctx) =>
+    Object.assign(new Error(`طلبات كتير ورا بعض. استنى ${Math.ceil(ctx.ttl / 1000)} ثانية وجرب تاني.`), { statusCode: 429, expose: true }),
+});
+
+// Browser protection headers.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' blob: https:",
+  "connect-src 'self' https:",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+app.addHook('onSend', async (request, reply, payload) => {
+  reply.header('Content-Security-Policy', CSP);
+  reply.header('X-Content-Type-Options', 'nosniff');
+  reply.header('X-Frame-Options', 'DENY');
+  reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  reply.header('Cross-Origin-Opener-Policy', 'same-origin');
+  if (request.protocol === 'https') reply.header('Strict-Transport-Security', 'max-age=31536000');
+  return payload;
+});
 
 // Accept empty JSON bodies (e.g. POST actions with no payload) as {}.
 app.removeContentTypeParser('application/json');

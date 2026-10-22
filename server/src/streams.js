@@ -5,6 +5,8 @@
  * - nowTitle(): cached "what's playing" for a station (refreshed at most every 20s).
  */
 
+import { safeFetch } from './netguard.js';
+
 const UA = 'DarwishMusicStudio/1.0 (+https://dms.darwish-tech.com)';
 const PROBE_TIMEOUT_MS = 7000;
 const MAX_METAINT = 256 * 1024;
@@ -79,9 +81,8 @@ export async function probeStream(url, { wantTitle = true, depth = 0 } = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       headers: { 'Icy-MetaData': '1', 'User-Agent': UA, Accept: '*/*' },
-      redirect: 'follow',
       signal: ctrl.signal,
     });
     const h = res.headers;
@@ -134,7 +135,7 @@ export async function probeStream(url, { wantTitle = true, depth = 0 } = {}) {
     }
     return info;
   } catch (err) {
-    const msg = err.name === 'AbortError' ? 'الرابط مردش في الوقت المحدد' : 'تعذر الاتصال بالرابط';
+    const msg = err.blocked ? err.message : err.name === 'AbortError' ? 'الرابط مردش في الوقت المحدد' : 'تعذر الاتصال بالرابط';
     return { ok: false, url, error: msg, detail: String(err.cause?.code || err.message).slice(0, 120) };
   } finally {
     clearTimeout(timer);

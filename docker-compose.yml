@@ -16,6 +16,15 @@ services:
       timeout: 5s
       retries: 10
     # No ports published: the database is only reachable from the app container.
+    # Caps so this site can never starve the other apps on the server.
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 200
+    logging: &logs
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
 
   app:
     build: .
@@ -45,6 +54,13 @@ services:
       - ${IMPORT_PATH:-./data/import}:/data/import
     ports:
       - "${APP_PORT:-8095}:8080"
+    mem_limit: 1536m
+    cpus: 2.0
+    pids_limit: 300
+    # The app needs no special Linux privileges.
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging: *logs
 
   # Optional: public HTTPS for dms.darwish-tech.com through a Cloudflare Tunnel,
   # so no router ports need to be opened. Start with: docker compose --profile tunnel up -d
