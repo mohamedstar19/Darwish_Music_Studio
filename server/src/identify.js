@@ -206,12 +206,48 @@ export function cleanName(text) {
     .trim();
 }
 
+/*
+ * Arabic songs are often listed under a Latin spelling (قرب كمان = "Aarrab Kaman",
+ * تامر حسني = "Tamer Hosny"). Both are reduced to a consonant skeleton ("rbkmn", "tmrhsn")
+ * so the two spellings can be compared. Vowels, ع/ء/ق and doubled letters are dropped.
+ */
+const AR_SKELETON = { ب: 'b', ت: 't', ث: 't', ج: 'g', ح: 'h', خ: 'k', د: 'd', ذ: 'z', ر: 'r', ز: 'z', س: 's', ش: 'S', ص: 's', ض: 'd', ط: 't', ظ: 'z', غ: 'G', ف: 'f', ك: 'k', ل: 'l', م: 'm', ن: 'n', ه: 'h', پ: 'b', گ: 'g', ڤ: 'f' };
+
+export function skeleton(text) {
+  let s = String(text || '').toLowerCase();
+  if (hasArabic(s)) s = [...s].map((ch) => AR_SKELETON[ch] ?? (/[a-z0-9]/.test(ch) ? ch : '')).join('');
+  else {
+    s = s
+      .replace(/([aeiou])h\b/g, '$1')
+      .replace(/kh/g, 'k').replace(/sh|ch/g, 'S').replace(/gh/g, 'G').replace(/th/g, 't').replace(/dh/g, 'z')
+      .replace(/q/g, '').replace(/c/g, 'k').replace(/j/g, 'g').replace(/p/g, 'b').replace(/v/g, 'f').replace(/x/g, 'ks')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .replace(/[aeiouyw]/g, '');
+  }
+  return s.replace(/(.)\1+/g, '$1');
+}
+
+/** 0..1 similarity of two names, also across Arabic and Latin spellings. */
+export function nameSim(a, b) {
+  if (!a || !b) return 0;
+  if (hasArabic(a) === hasArabic(b)) return similarity(a, b);
+  const x = skeleton(a);
+  const y = skeleton(b);
+  if (!x || !y) return 0;
+  if (x.length < 3 || y.length < 3) return x === y ? 0.9 : 0;
+  return 0.95 * similarity(x, y);
+}
+
 /** Our best guess at "artist" and "title" from the current names (handles "Artist - Title"). */
 function nameGuess(track) {
   const title = cleanName(track.title);
   const artist = track.artist && !looksWrong(track.artist) ? track.artist : cleanName(track.artist);
   const parts = title.split(/\s+[-–|]\s+/).filter(Boolean);
   if (parts.length === 2 && !artist) return { title: parts[1], artist: parts[0], alt: { title: parts[0], artist: parts[1] } };
+  if (parts.length === 2 && artist) {
+    if (nameSim(parts[0], artist) >= 0.8) return { title: parts[1], artist };
+    if (nameSim(parts[1], artist) >= 0.8) return { title: parts[0], artist };
+  }
   return { title, artist: artist || null };
 }
 
@@ -246,14 +282,30 @@ async function deezer(term) {
 
 function scoreByName(c, guess, duration) {
   const match = (g) => {
-    const t = similarity(g.title, c.title);
+    const t = nameSim(g.title, c.title);
     if (!g.artist) return t * 0.9;
-    const crossScript = hasArabic(g.artist) !== hasArabic(c.artist);
-    const a = Math.max(similarity(g.artist, c.artist), crossScript ? 0.7 : 0);
-    return Math.min(t, a);
+    return Math.min(t, nameSim(g.artist, c.artist));
   };
-  const s = Math.max(match(guess), guess.alt ? match(guess.alt) : 0);
-  return s * durationFactor(duration, c.duration);
+  const main = match(guess);
+  const alt = guess.alt ? match(guess.alt) : 0;
+  const ours = alt > main ? guess.alt : { title: guess.title, artist: guess.artist };
+  return { confidence: Math.max(main, alt) * durationFactor(duration, c.duration), ours };
+}
+
+/**
+ * A Latin result that sounds like our Arabic name confirms our name: show it in Arabic
+ * (ours) and keep the Latin spelling only as a note.
+ */
+function localize(c, ours) {
+  if (!ours?.title || !hasArabic(ours.title) || hasArabic(c.title)) return c;
+  if (nameSim(ours.title, c.title) < 0.75) return c;
+  const keepArtist = ours.artist && c.artist && hasArabic(ours.artist) && !hasArabic(c.artist) && nameSim(ours.artist, c.artist) >= 0.75;
+  return {
+    ...c,
+    title: ours.title,
+    artist: keepArtist || !c.artist ? ours.artist : c.artist,
+    spelledAs: [c.title, c.artist].filter(Boolean).join(' — '),
+  };
 }
 
 async function byName(track) {
@@ -266,10 +318,15 @@ async function byName(track) {
   } catch {
     // try iTunes
   }
-  let scored = list.map((c) => ({ ...c, confidence: scoreByName(c, guess, track.duration_sec) }));
+  const scoreAll = (items) =>
+    items.map((c) => {
+      const { confidence, ours } = scoreByName(c, guess, track.duration_sec);
+      return { ...localize(c, ours), confidence };
+    });
+  let scored = scoreAll(list);
   if (!scored.some((c) => c.confidence >= 0.85)) {
     try {
-      scored = scored.concat((await itunes(term)).map((c) => ({ ...c, confidence: scoreByName(c, guess, track.duration_sec) })));
+      scored = scored.concat(scoreAll(await itunes(term)));
     } catch {
       // no result from iTunes either
     }
@@ -309,7 +366,8 @@ export async function identifyTrack(trackId, { useName = true } = {}) {
         const fp = await fingerprint(file);
         const results = await acoustidLookup(key, fp);
         info.acoustidId = results.sort((a, b) => b.score - a.score)[0]?.id || null;
-        candidates = bySound(results, t.duration_sec || fp.duration);
+        const guess = nameGuess(t);
+        candidates = bySound(results, t.duration_sec || fp.duration).map((c) => localize(c, guess));
         if (info.acoustidId) await query('UPDATE tracks SET acoustid_id = $2 WHERE id = $1', [t.id, info.acoustidId]);
       } catch (err) {
         info.soundError = err.message;
@@ -336,6 +394,11 @@ async function artistByName(name) {
   if (!clean) return null;
   const found = await one('SELECT id FROM artists WHERE norm_ar(name) = norm_ar($1) LIMIT 1', [clean]);
   if (found) return found.id;
+  if (!hasArabic(clean)) {
+    const sk = skeleton(clean);
+    const same = sk.length >= 4 ? (await many('SELECT id, name FROM artists')).find((a) => hasArabic(a.name) && skeleton(a.name) === sk) : null;
+    if (same) return same.id;
+  }
   return (
     await one(
       'INSERT INTO artists (name) VALUES ($1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id',
@@ -421,7 +484,7 @@ export async function startIdentifyJob({ scope = 'suspicious' } = {}) {
           job.recent.push({ id: t.id, from: [t.title, t.artist].filter(Boolean).join(' — '), to: [plan.title || t.title, plan.artist || t.artist].filter(Boolean).join(' — '), source: best.source });
         } else {
           const useful = r.candidates.filter((c) => c.confidence >= 0.5);
-          const unchanged = best && similarity(best.title, t.title) >= 0.9 && (!best.artist || !t.artist || similarity(best.artist, t.artist) >= 0.8);
+          const unchanged = best && nameSim(best.title, t.title) >= 0.9 && (!best.artist || !t.artist || nameSim(best.artist, t.artist) >= 0.8);
           const status = useful.length && !unchanged ? 'suggested' : 'none';
           await query(
             `UPDATE tracks SET identify_status = $2, identify_suggestion = $3, identified_at = now() WHERE id = $1`,
