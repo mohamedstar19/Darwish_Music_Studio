@@ -12,3 +12,9 @@ Thumbs.db
 # Local-only files
 .claude/settings.local.json
 /Darwish_Music_Studio_Project_Plan.md
+
+# Backup run files
+backup.log
+.backup.lock
+.restore-check.err
+backups/

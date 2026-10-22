@@ -29,6 +29,16 @@ mkdir -p "$(grep -E '^MEDIA_PATH=' .env | cut -d= -f2- || echo ./data/media)" 2>
 mkdir -p "$(grep -E '^IMPORT_PATH=' .env | cut -d= -f2- || true)" 2>/dev/null || true
 mkdir -p ./data/import
 
+# Daily backup at 3:30 AM when a backup place is set (BACKUP_DIR in .env). Safe to run every deploy.
+if grep -qE '^BACKUP_DIR=.+' .env && command -v crontab >/dev/null 2>&1; then
+  DIR="$(pwd)"
+  LINE="30 3 * * * cd $DIR && ./scripts/backup.sh >> $DIR/backup.log 2>&1"
+  if ! crontab -l 2>/dev/null | grep -qF "$DIR && ./scripts/backup.sh"; then
+    (crontab -l 2>/dev/null; echo "$LINE") | crontab -
+    echo "Daily backup scheduled (3:30 AM)."
+  fi
+fi
+
 PROFILE=""
 if grep -qE '^CLOUDFLARE_TUNNEL_TOKEN=.+' .env; then
   PROFILE="--profile tunnel"

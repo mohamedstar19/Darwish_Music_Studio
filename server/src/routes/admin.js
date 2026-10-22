@@ -1,3 +1,6 @@
+import fsp from 'node:fs/promises';
+import path from 'node:path';
+import { config } from '../config.js';
 import { hashPassword, publicUser, requireAdmin, requireAdminGate, requireEditor, validatePassword } from '../auth.js';
 import { many, one, PLAYABLE, query, tx } from '../db.js';
 import { enqueueTrack, queueLength, removeMedia, saveAudioUpload, saveUpload } from '../media.js';
@@ -90,6 +93,16 @@ function assertPublishable(t) {
   if (t.processing_status !== 'ready') throw httpError(400, 'الملف لسه بيتجهز أو فشل في المعالجة');
   if (t.license_expires_at && new Date(t.license_expires_at) < new Date(new Date().toDateString())) {
     throw httpError(400, 'الترخيص منتهي');
+  }
+}
+
+/** Last nightly backup, written by scripts/backup.sh next to the media files. */
+async function backupStatus() {
+  try {
+    const s = JSON.parse(await fsp.readFile(path.join(config.mediaDir, '.backup-status.json'), 'utf8'));
+    return { configured: true, ...s, stale: Date.now() - new Date(s.finishedAt).getTime() > 36 * 3600 * 1000 };
+  } catch {
+    return { configured: false };
   }
 }
 
@@ -1083,6 +1096,6 @@ export default async function adminRoutes(app) {
             ORDER BY license_expires_at LIMIT 50`),
       many(`SELECT processing_status, count(*)::int AS n FROM tracks GROUP BY 1`),
     ]);
-    return { counts, daily, topTracks, topStations, bandwidth, errors, expiring, processing, queue: queueLength() };
+    return { counts, daily, topTracks, topStations, bandwidth, errors, expiring, processing, queue: queueLength(), backup: await backupStatus() };
   });
 }

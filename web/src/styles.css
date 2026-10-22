@@ -3629,3 +3629,37 @@ html.synth-bg .auth-card {
   align-items: stretch;
   gap: 6px;
 }
+
+/* ---------- Backup status (dashboard) ---------- */
+.backup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  animation: fadeSlide 0.35s ease backwards;
+}
+
+.backup-card.ok {
+  border-color: color-mix(in srgb, #22c55e 45%, transparent);
+}
+
+.backup-card.ok > b {
+  color: #22c55e;
+}
+
+.backup-card.warn {
+  border-color: color-mix(in srgb, #eab308 50%, transparent);
+}
+
+.backup-card.bad {
+  border-color: color-mix(in srgb, #ef4444 55%, transparent);
+  background: color-mix(in srgb, #ef4444 8%, var(--surface));
+}
+
+.backup-card.bad > b {
+  color: #ef4444;
+}

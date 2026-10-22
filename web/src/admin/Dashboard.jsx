@@ -6,6 +6,36 @@ import { useFetch } from '../hooks.js';
 import { BarChart, StatTile, timeAgo } from './ui.jsx';
 import { useAdminBase } from './base.js';
 
+/** Nightly backup: when it last ran, and whether it worked. */
+function BackupCard({ b }) {
+  if (!b) return null;
+  if (!b.configured) {
+    return (
+      <div className="backup-card warn">
+        <b>⚠ النسخ الاحتياطي لسه مااشتغلش</b>
+        <span className="muted small">ظبط BACKUP_DIR في إعدادات السيرفر عشان أغانيك وبياناتك تتنسخ كل يوم.</span>
+      </div>
+    );
+  }
+  const bad = !b.ok || b.stale;
+  return (
+    <div className={`backup-card ${bad ? 'bad' : 'ok'}`}>
+      <b>
+        {!b.ok ? '✗ آخر نسخة احتياطية فشلت' : b.stale ? '⚠ مفيش نسخة احتياطية من أكتر من يوم ونص' : '✓ النسخ الاحتياطي شغال'}
+        <span className="muted small"> · آخر مرة {timeAgo(b.finishedAt)}</span>
+      </b>
+      {b.ok ? (
+        <span className="muted small">
+          قاعدة البيانات ({b.tracks} أغنية، اتجربت إنها بترجع سليمة) · {b.mediaFiles} ملف أغاني وصور ({formatBytes(b.mediaBytes)}) · محفوظ{' '}
+          {b.dbCopies} نسخة من قاعدة البيانات، والملفات المحذوفة بتفضل {b.keepDays} يوم
+        </span>
+      ) : (
+        <span className="small">{b.error}</span>
+      )}
+    </div>
+  );
+}
+
 export function Dashboard() {
   const base = useAdminBase();
   const { data, loading, error, reload } = useFetch('/api/admin/stats');
@@ -16,6 +46,7 @@ export function Dashboard() {
   return (
     <div className="admin-page">
       <h1>لوحة التحكم</h1>
+      <BackupCard b={data.backup} />
       <div className="stat-row">
         <StatTile label="مستخدم" value={c.users} hint={`${c.new_users} جديد آخر 30 يوم`} />
         <StatTile label="نشط آخر 7 أيام" value={c.active_users_7d} />
