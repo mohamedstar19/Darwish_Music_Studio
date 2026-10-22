@@ -37,6 +37,7 @@ services:
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-300}
       AUDIO_BITRATE: ${AUDIO_BITRATE:-192k}
       PROCESS_CONCURRENCY: ${PROCESS_CONCURRENCY:-2}
+      ACOUSTID_KEY: ${ACOUSTID_KEY:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ${MEDIA_PATH:-./data/media}:/data/media

@@ -8,7 +8,7 @@ RUN npm run build
 
 # ---- Runtime: API + built web app + ffmpeg ----
 FROM node:22-alpine
-RUN apk add --no-cache ffmpeg tini wget
+RUN apk add --no-cache ffmpeg chromaprint tini wget
 WORKDIR /app/server
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund

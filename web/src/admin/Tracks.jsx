@@ -9,6 +9,7 @@ import { RIGHTS_LABEL, STATUS_LABEL } from './ui.jsx';
 import BulkUpload from './BulkUpload.jsx';
 import ImageSearch from './ImageSearch.jsx';
 import LyricsSearch from './LyricsSearch.jsx';
+import IdentifySong from './IdentifySong.jsx';
 
 function Select({ value, onChange, options, empty = '—', className = 'input' }) {
   return (
@@ -29,6 +30,7 @@ function EditTrack({ id, lookups, onClose, onSaved }) {
   const [form, setForm] = useState(null);
   const [findCover, setFindCover] = useState(false);
   const [findLyrics, setFindLyrics] = useState(false);
+  const [identify, setIdentify] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
@@ -181,9 +183,25 @@ function EditTrack({ id, lookups, onClose, onSaved }) {
         <div className="edit-main">
           <div className="form-grid">
             <label className="span-2">
-              اسم الأغنية
+              <span className="label-row">
+                اسم الأغنية
+                <button type="button" className="btn btn-ghost btn-small" onClick={() => setIdentify(true)}>
+                  <Icon name="search" size={16} /> اعرف الأغنية من صوتها
+                </button>
+              </span>
               <input className="input" value={form.title} onChange={set('title')} required />
             </label>
+            {identify ? (
+              <IdentifySong
+                trackId={t.id}
+                onClose={() => setIdentify(false)}
+                onPick={(c) => {
+                  setForm((f) => ({ ...f, title: c.title, artistName: c.artist || f.artistName, year: f.year || c.year || '' }));
+                  setIdentify(false);
+                  toast('الاسم اتحط في الخانات. راجعه واضغط حفظ', 'success');
+                }}
+              />
+            ) : null}
             <label>
               الفنان
               <input className="input" value={form.artistName} onChange={set('artistName')} list="artists-list-edit" />
@@ -408,7 +426,7 @@ export default function Tracks() {
 
       {filters.missing || filters.ready ? (
         <div className="notice" style={{ marginBottom: 10 }}>
-          {{ image: 'أغاني من غير أي صورة', category: 'أغاني من غير تصنيف', artist: 'أغاني من غير فنان', lyrics: 'أغاني من غير كلمات' }[filters.missing] ||
+          {{ image: 'أغاني من غير أي صورة', category: 'أغاني من غير تصنيف', artist: 'أغاني من غير فنان', lyrics: 'أغاني من غير كلمات', name: 'أغاني اسمها شكله غلط' }[filters.missing] ||
             'أغاني جاهزة وحقوقها سليمة بس مش منشورة'}{' '}
           <button type="button" className="btn btn-ghost btn-small" onClick={() => setFilters((f) => ({ ...f, missing: '', ready: '' }))}>
             شيل الفلتر

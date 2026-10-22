@@ -5,6 +5,7 @@ import { ErrorBox, Loading, Section } from '../components/common.jsx';
 import Icon from '../components/Icon.jsx';
 import { useToast } from '../state/ToastContext.jsx';
 import { useAdminBase } from './base.js';
+import NameFixer from './NameFixer.jsx';
 
 /** What's missing or odd in the library, with a fix next to each item. */
 export default function Health() {
@@ -63,6 +64,8 @@ export default function Health() {
     { n: c.no_lyrics, label: 'أغنية من غير كلمات', to: `${base}/tracks?missing=lyrics` },
     { n: c.no_category, label: 'أغنية من غير تصنيف', to: `${base}/tracks?missing=category` },
     { n: c.no_artist, label: 'أغنية من غير فنان', to: `${base}/tracks?missing=artist` },
+    { n: c.bad_name, label: 'أغنية اسمها شكله غلط (اسم موقع، Track 01…)', to: `${base}/tracks?missing=name` },
+    { n: c.name_suggestions, label: 'اسم مقترح مستني رأيك', to: `${base}/health` },
     { n: c.ready_unpublished, label: 'أغنية جاهزة وحقوقها سليمة بس مش منشورة', to: `${base}/tracks?ready=unpublished` },
     { n: c.pending_rights, label: 'أغنية حقوقها قيد المراجعة', to: `${base}/tracks?rights=pending` },
     { n: c.failed, label: 'أغنية فشلت في المعالجة', to: `${base}/tracks?status=failed` },
@@ -142,6 +145,8 @@ export default function Health() {
         ) : null}
       </div>
 
+      <NameFixer counts={c} onChanged={load} />
+
       <div className="health-list">
         {items.map((it) => (
           <Link key={it.label} to={it.to} className={`health-item ${it.n ? 'warn' : 'ok'}`}>
@@ -151,6 +156,31 @@ export default function Health() {
           </Link>
         ))}
       </div>
+
+      {data.soundDuplicates?.length ? (
+        <Section title="نفس الأغنية بالظبط (اتعرفت من الصوت)">
+          <p className="muted small">
+            الملفات دي صوتها واحد حتى لو أساميها مختلفة. سيب أحسن نسخة وامسح الباقي.
+          </p>
+          <ul className="upload-results">
+            {data.soundDuplicates.map((d) => (
+              <li key={d.key} className="dup">
+                <span className="mark">{d.n}×</span>
+                <span className="grow">
+                  <b>{d.title}</b> <small className="muted">· {d.artist || 'من غير فنان'}</small>
+                </span>
+                <span className="chips">
+                  {d.ids.map((id) => (
+                    <Link key={id} to={`${base}/tracks?edit=${id}`} className="chip">
+                      #{id}
+                    </Link>
+                  ))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
 
       {data.duplicates.length ? (
         <Section title="أغاني ممكن تكون متكررة (نفس الاسم ونفس الفنان)">

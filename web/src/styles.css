@@ -3519,3 +3519,113 @@ html.synth-bg .auth-card {
   font-size: 0.88rem;
   line-height: 1.8;
 }
+
+/* ---------- Fix wrong song names (identify) ---------- */
+.note-box {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  line-height: 1.8;
+}
+
+.id-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.id-candidate {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  animation: fadeSlide 0.3s ease backwards;
+}
+
+.id-candidate .grow {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.id-conf.hi {
+  color: #22c55e;
+}
+
+.id-conf.mid {
+  color: #eab308;
+}
+
+.id-conf.lo {
+  color: var(--text-3, #94a3b8);
+}
+
+.id-review {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.id-review-item {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2, var(--surface));
+}
+
+.id-review-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.id-key-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.id-key-form .input {
+  flex: 1 1 200px;
+  direction: ltr;
+}
+
+.id-steps {
+  margin: 6px 0;
+  padding-inline-start: 20px;
+  line-height: 1.9;
+}
+
+@media (max-width: 640px) {
+  .id-candidate {
+    flex-wrap: wrap;
+  }
+  .id-candidate .btn {
+    width: 100%;
+  }
+}
+
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.stack-btns {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}

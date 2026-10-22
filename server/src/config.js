@@ -26,6 +26,8 @@ export const config = {
   maxUploadMb: Number(env.MAX_UPLOAD_MB || 300),
   audioBitrate: env.AUDIO_BITRATE || '192k',
   ffmpegPath: env.FFMPEG_PATH || 'ffmpeg',
+  // Chromaprint's fingerprint tool, used to recognise songs by their sound (AcoustID).
+  fpcalcPath: env.FPCALC_PATH || 'fpcalc',
   // How many songs are converted at the same time (each uses one CPU core).
   processConcurrency: Math.max(1, Number(env.PROCESS_CONCURRENCY || 2)),
   // Folder scanned by "import from server folder" (bulk import of many songs).

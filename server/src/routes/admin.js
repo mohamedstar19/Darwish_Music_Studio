@@ -3,6 +3,10 @@ import { many, one, PLAYABLE, query, tx } from '../db.js';
 import { enqueueTrack, queueLength, removeMedia, saveAudioUpload, saveUpload } from '../media.js';
 import { importStatus, importStoredFile, scanImportDir, startImport, stopImport } from '../importer.js';
 import { applyLyrics, searchLyrics } from '../lyrics.js';
+import {
+  applyName, dismissSuggestion, fpcalcAvailable, getSetting, identifyStatus, identifyTrack, reviewList, setSetting,
+  startIdentifyJob, stopIdentifyJob, SUSPICIOUS_SQL, testAcoustidKey,
+} from '../identify.js';
 import { applyImage, artworkStatus, searchArtist, searchTrack, searchWork, startArtworkJob, stopArtworkJob } from '../artwork.js';
 import { coverUrl, shapeStation } from '../shape.js';
 import { cleanText, httpError, likePattern, slugify, toInt } from '../util.js';
@@ -139,6 +143,7 @@ export default async function adminRoutes(app) {
     if (q.missing === 'category') where.push('t.category_id IS NULL');
     if (q.missing === 'artist') where.push('t.artist_id IS NULL');
     if (q.missing === 'lyrics') where.push('t.lyrics IS NULL');
+    if (q.missing === 'name') where.push(SUSPICIOUS_SQL);
     if (q.missing === 'image') where.push('t.cover_path IS NULL AND a.photo_path IS NULL AND w.cover_path IS NULL');
     if (q.ready === 'unpublished') where.push("NOT t.is_published AND t.processing_status = 'ready' AND t.rights_type IN ('original', 'licensed')");
     if (q.station) {
@@ -262,9 +267,50 @@ export default async function adminRoutes(app) {
   });
   app.post('/api/admin/artwork/stop', editor, async () => stopArtworkJob());
 
+  // ---- Fix wrong song names (by sound via AcoustID, or by a cleaned-up name) ----
+  app.get('/api/admin/identify/settings', editor, async () => {
+    const saved = await getSetting('acoustid_key');
+    return { keySet: !!(saved || process.env.ACOUSTID_KEY), keyFromEnv: !saved && !!process.env.ACOUSTID_KEY, fpcalc: await fpcalcAvailable() };
+  });
+
+  app.put('/api/admin/identify/settings', admin, async (request) => {
+    const key = cleanText(request.body?.acoustidKey, 100);
+    if (key && !/^[A-Za-z0-9_-]{4,64}$/.test(key)) throw httpError(400, 'شكل المفتاح غلط');
+    if (key && !(await testAcoustidKey(key))) {
+      throw httpError(400, 'AcoustID رفض المفتاح ده. لازم يكون "Application API key" من صفحة تسجيل تطبيق جديد، مش مفتاح حسابك (User API key).');
+    }
+    await setSetting('acoustid_key', key);
+    return { ok: true, keySet: !!(key || process.env.ACOUSTID_KEY) };
+  });
+
+  app.post('/api/admin/tracks/:id/identify', editor, async (request) => identifyTrack(toInt(request.params.id)));
+
+  app.post('/api/admin/identify/apply', editor, async (request) => {
+    const b = request.body || {};
+    const id = toInt(b.id);
+    await applyName(id, { title: b.title, artist: b.artist, year: b.year });
+    return getAdminTrack(id);
+  });
+
+  app.post('/api/admin/identify/dismiss', editor, async (request) => {
+    await dismissSuggestion(toInt(request.body?.id));
+    return { ok: true };
+  });
+
+  app.post('/api/admin/identify/start', editor, async (request) => startIdentifyJob({ scope: request.body?.scope === 'all' ? 'all' : 'suspicious' }));
+  app.post('/api/admin/identify/stop', editor, async () => stopIdentifyJob());
+  app.get('/api/admin/identify/status', editor, async () => identifyStatus());
+  app.get('/api/admin/identify/review', editor, async () => reviewList());
+
+  // Check the same songs again (e.g. after adding the AcoustID key).
+  app.post('/api/admin/identify/reset', editor, async () => {
+    const r = await query(`UPDATE tracks SET identify_status = NULL, identify_suggestion = NULL WHERE identify_status IN ('none', 'suggested')`);
+    return { ok: true, reset: r.rowCount };
+  });
+
   // ---- Library health: what's missing, and what looks duplicated ----
   app.get('/api/admin/health', editor, async () => {
-    const [counts, dupes] = await Promise.all([
+    const [counts, dupes, soundDupes] = await Promise.all([
       one(`SELECT
         (SELECT count(*)::int FROM tracks) AS tracks,
         (SELECT count(*)::int FROM tracks t LEFT JOIN artists a ON a.id = t.artist_id LEFT JOIN works w ON w.id = t.work_id
@@ -274,6 +320,10 @@ export default async function adminRoutes(app) {
         (SELECT count(*)::int FROM tracks WHERE category_id IS NULL) AS no_category,
         (SELECT count(*)::int FROM tracks WHERE lyrics IS NULL) AS no_lyrics,
         (SELECT count(*)::int FROM tracks WHERE artist_id IS NULL) AS no_artist,
+        (SELECT count(*)::int FROM tracks t LEFT JOIN artists a ON a.id = t.artist_id WHERE ${SUSPICIOUS_SQL}) AS bad_name,
+        (SELECT count(*)::int FROM tracks t LEFT JOIN artists a ON a.id = t.artist_id
+           WHERE ${SUSPICIOUS_SQL} AND t.identify_status IS NULL AND t.processing_status = 'ready') AS bad_name_unchecked,
+        (SELECT count(*)::int FROM tracks WHERE identify_status = 'suggested') AS name_suggestions,
         (SELECT count(*)::int FROM tracks WHERE rights_type = 'pending') AS pending_rights,
         (SELECT count(*)::int FROM tracks WHERE processing_status = 'failed') AS failed,
         (SELECT count(*)::int FROM tracks WHERE processing_status IN ('pending', 'processing')) AS processing,
@@ -285,8 +335,15 @@ export default async function adminRoutes(app) {
             FROM tracks t LEFT JOIN artists a ON a.id = t.artist_id
             GROUP BY norm_ar(t.title), t.artist_id HAVING count(*) > 1
             ORDER BY count(*) DESC, min(t.title) LIMIT 30`),
+      // Same recording by sound (AcoustID), even when the names differ.
+      many(`SELECT t.acoustid_id AS key, min(t.title) AS title, min(a.name) AS artist,
+              array_agg(t.id ORDER BY t.id) AS ids, count(*)::int AS n
+            FROM tracks t LEFT JOIN artists a ON a.id = t.artist_id
+            WHERE t.acoustid_id IS NOT NULL
+            GROUP BY t.acoustid_id HAVING count(*) > 1
+            ORDER BY count(*) DESC LIMIT 30`),
     ]);
-    return { counts, duplicates: dupes, artwork: artworkStatus() };
+    return { counts, duplicates: dupes, soundDuplicates: soundDupes, artwork: artworkStatus(), identify: identifyStatus() };
   });
 
   // ---- Import from a folder on the server (for hundreds or thousands of songs) ----
