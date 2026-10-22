@@ -28,6 +28,7 @@ import {
 } from './media.js';
 import { config } from './config.js';
 import { normAr } from './shape.js';
+import { startArtworkJob } from './artwork.js';
 import { cleanText, slugify } from './util.js';
 
 const RULES = [
@@ -460,6 +461,8 @@ async function runImport(files, images, opts) {
   job.current = null;
   job.finishedAt = new Date().toISOString();
   if (opts.moveFiles) await removeEmptyDirs(config.importDir).catch(() => {});
+  // Then look up missing artist photos and posters on the internet, if asked.
+  if (opts.fetchArt) await startArtworkJob().catch(() => {});
 }
 
 async function removeEmptyDirs(dir, root = dir) {

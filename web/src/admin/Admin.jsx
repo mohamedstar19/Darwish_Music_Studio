@@ -6,6 +6,7 @@ import { Dashboard, Live } from './Dashboard.jsx';
 import { Artists, Categories, OfficialPlaylists, Reports, Requests, Stations, Users, Works } from './Manage.jsx';
 import Tracks from './Tracks.jsx';
 import ServerImport from './ServerImport.jsx';
+import Health from './Health.jsx';
 import { AdminBase } from './base.js';
 
 const NAV = [
@@ -13,6 +14,7 @@ const NAV = [
   { to: '/live', icon: 'radio', label: 'مباشر: مين بيسمع' },
   { to: '/tracks', icon: 'music', label: 'الأغاني' },
   { to: '/import', icon: 'upload', label: 'استيراد جماعي' },
+  { to: '/health', icon: 'shield', label: 'صحة المكتبة' },
   { to: '/works', icon: 'library', label: 'الأعمال' },
   { to: '/categories', icon: 'list', label: 'التصنيفات' },
   { to: '/artists', icon: 'user', label: 'الفنانين' },
@@ -52,6 +54,7 @@ export default function Admin({ base }) {
               <Route path="live" element={<Live />} />
               <Route path="tracks" element={<Tracks />} />
               <Route path="import" element={<ServerImport />} />
+              <Route path="health" element={<Health />} />
               <Route path="works" element={<Works />} />
               <Route path="categories" element={<Categories />} />
               <Route path="artists" element={<Artists />} />

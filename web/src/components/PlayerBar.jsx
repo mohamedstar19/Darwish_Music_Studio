@@ -219,6 +219,45 @@ function QueuePanel() {
   );
 }
 
+/** "[01:23.45] line" → [{ t: 83.45, text }] (a line may carry several timestamps). */
+function parseLrc(lrc) {
+  const out = [];
+  for (const raw of String(lrc || '').split(/\r?\n/)) {
+    const stamps = [...raw.matchAll(/\[(\d{1,2}):(\d{1,2}(?:[.:]\d{1,3})?)\]/g)];
+    if (!stamps.length) continue;
+    const text = raw.replace(/\[[^\]]*\]/g, '').trim();
+    for (const m of stamps) out.push({ t: Number(m[1]) * 60 + Number(m[2].replace(':', '.')), text });
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+
+/** Timed lyrics: the current line lights up and stays in view; tap a line to jump there. */
+function SyncedLyrics({ lines }) {
+  const p = usePlayer();
+  const { time } = usePlayerTime();
+  const boxRef = useRef(null);
+  let current = -1;
+  for (let i = 0; i < lines.length; i += 1) if (lines[i].t <= time + 0.25) current = i;
+  useEffect(() => {
+    const el = boxRef.current?.querySelector('.lrc-line.now');
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [current]);
+  return (
+    <div className="lrc" ref={boxRef}>
+      {lines.map((l, i) => (
+        <button
+          key={`${l.t}-${i}`}
+          type="button"
+          className={`lrc-line ${i === current ? 'now' : i < current ? 'past' : ''}`}
+          onClick={() => p.seek(l.t)}
+        >
+          {l.text || '♪'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Lyrics({ trackId }) {
   const [data, setData] = useState(null);
   useEffect(() => {
@@ -226,9 +265,16 @@ function Lyrics({ trackId }) {
     api.get(`/api/tracks/${trackId}`).then((d) => setData(d.track)).catch(() => setData({}));
   }, [trackId]);
   if (!data) return <p className="muted">بيحمّل...</p>;
+  const lines = data.lyricsSynced ? parseLrc(data.lyricsSynced) : [];
   return (
     <div className="lyrics">
-      {data.lyrics ? <pre>{data.lyrics}</pre> : <p className="muted">مفيش كلمات متاحة للأغنية دي.</p>}
+      {lines.length ? (
+        <SyncedLyrics lines={lines} />
+      ) : data.lyrics ? (
+        <pre>{data.lyrics}</pre>
+      ) : (
+        <p className="muted">مفيش كلمات متاحة للأغنية دي.</p>
+      )}
       {data.credits ? (
         <>
           <h4>الاعتمادات</h4>

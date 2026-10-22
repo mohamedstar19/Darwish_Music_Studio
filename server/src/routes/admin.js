@@ -2,6 +2,8 @@ import { hashPassword, publicUser, requireAdmin, requireAdminGate, requireEditor
 import { many, one, PLAYABLE, query, tx } from '../db.js';
 import { enqueueTrack, queueLength, removeMedia, saveAudioUpload, saveUpload } from '../media.js';
 import { importStatus, importStoredFile, scanImportDir, startImport, stopImport } from '../importer.js';
+import { applyLyrics, searchLyrics } from '../lyrics.js';
+import { applyImage, artworkStatus, searchArtist, searchTrack, searchWork, startArtworkJob, stopArtworkJob } from '../artwork.js';
 import { coverUrl, shapeStation } from '../shape.js';
 import { cleanText, httpError, likePattern, slugify, toInt } from '../util.js';
 import { officialPlaylists } from './catalog.js';
@@ -25,6 +27,8 @@ function adminTrack(t) {
     year: t.year,
     duration: t.duration_sec,
     lyrics: t.lyrics,
+    lyricsSynced: !!t.lyrics_synced,
+    lyricsSource: t.lyrics_source,
     credits: t.credits,
     cover: coverUrl(t.cover_path || t.artist_photo_path || t.work_cover_path),
     hasOwnCover: !!t.cover_path,
@@ -132,6 +136,11 @@ export default async function adminRoutes(app) {
       params.push(toInt(q.work));
       where.push(`t.work_id = $${params.length}`);
     }
+    if (q.missing === 'category') where.push('t.category_id IS NULL');
+    if (q.missing === 'artist') where.push('t.artist_id IS NULL');
+    if (q.missing === 'lyrics') where.push('t.lyrics IS NULL');
+    if (q.missing === 'image') where.push('t.cover_path IS NULL AND a.photo_path IS NULL AND w.cover_path IS NULL');
+    if (q.ready === 'unpublished') where.push("NOT t.is_published AND t.processing_status = 'ready' AND t.rights_type IN ('original', 'licensed')");
     if (q.station) {
       params.push(toInt(q.station));
       where.push(`t.id IN (SELECT track_id FROM station_tracks WHERE station_id = $${params.length})`);
@@ -199,6 +208,87 @@ export default async function adminRoutes(app) {
     return { ...result, track: await getAdminTrack(result.trackId) };
   });
 
+  // ---- Pictures from the internet ----
+  app.get('/api/admin/artwork/search', editor, async (request) => {
+    const type = request.query.type;
+    const id = toInt(request.query.id);
+    const q = cleanText(request.query.q, 200);
+    if (type === 'artist') {
+      const a = await one('SELECT name FROM artists WHERE id = $1', [id]);
+      if (!a && !q) throw httpError(404, 'غير موجود');
+      return searchArtist(q || a.name);
+    }
+    if (type === 'work') {
+      const w = await one('SELECT title, kind FROM works WHERE id = $1', [id]);
+      if (!w && !q) throw httpError(404, 'غير موجود');
+      return searchWork(q || w.title, w?.kind);
+    }
+    if (type === 'track') {
+      const t = await one('SELECT t.title, a.name AS artist FROM tracks t LEFT JOIN artists a ON a.id = t.artist_id WHERE t.id = $1', [id]);
+      if (!t && !q) throw httpError(404, 'غير موجود');
+      return searchTrack(q || t.title, q ? null : t.artist);
+    }
+    throw httpError(400, 'نوع غير معروف');
+  });
+
+  app.post('/api/admin/artwork/apply', editor, async (request) => {
+    const b = request.body || {};
+    const name = await applyImage(b.type, toInt(b.id), String(b.url || ''));
+    return { ok: true, image: coverUrl(name) };
+  });
+
+  app.post('/api/admin/artwork/auto', editor, async (request) => {
+    const b = request.body || {};
+    return startArtworkJob({ artists: b.artists !== false, works: b.works !== false, tracks: b.tracks !== false, lyrics: b.lyrics !== false });
+  });
+  app.get('/api/admin/artwork/status', editor, async () => artworkStatus());
+
+  // ---- Lyrics from the internet (LRCLIB) ----
+  app.get('/api/admin/lyrics/search', editor, async (request) => {
+    const t = await one(
+      'SELECT t.title, t.duration_sec, a.name AS artist FROM tracks t LEFT JOIN artists a ON a.id = t.artist_id WHERE t.id = $1',
+      [toInt(request.query.id)],
+    );
+    if (!t) throw httpError(404, 'الأغنية غير موجودة');
+    const q = cleanText(request.query.q, 200);
+    return searchLyrics(q || t.title, q ? cleanText(request.query.artist, 120) : t.artist, t.duration_sec);
+  });
+
+  app.post('/api/admin/lyrics/apply', editor, async (request) => {
+    const id = toInt(request.body?.id);
+    if (!(await one('SELECT id FROM tracks WHERE id = $1', [id]))) throw httpError(404, 'الأغنية غير موجودة');
+    await applyLyrics(id, toInt(request.body?.lrclibId));
+    return getAdminTrack(id);
+  });
+  app.post('/api/admin/artwork/stop', editor, async () => stopArtworkJob());
+
+  // ---- Library health: what's missing, and what looks duplicated ----
+  app.get('/api/admin/health', editor, async () => {
+    const [counts, dupes] = await Promise.all([
+      one(`SELECT
+        (SELECT count(*)::int FROM tracks) AS tracks,
+        (SELECT count(*)::int FROM tracks t LEFT JOIN artists a ON a.id = t.artist_id LEFT JOIN works w ON w.id = t.work_id
+           WHERE t.cover_path IS NULL AND a.photo_path IS NULL AND w.cover_path IS NULL) AS no_image,
+        (SELECT count(*)::int FROM artists a WHERE a.photo_path IS NULL AND EXISTS (SELECT 1 FROM tracks t WHERE t.artist_id = a.id)) AS artists_no_photo,
+        (SELECT count(*)::int FROM works w WHERE w.cover_path IS NULL AND EXISTS (SELECT 1 FROM tracks t WHERE t.work_id = w.id)) AS works_no_cover,
+        (SELECT count(*)::int FROM tracks WHERE category_id IS NULL) AS no_category,
+        (SELECT count(*)::int FROM tracks WHERE lyrics IS NULL) AS no_lyrics,
+        (SELECT count(*)::int FROM tracks WHERE artist_id IS NULL) AS no_artist,
+        (SELECT count(*)::int FROM tracks WHERE rights_type = 'pending') AS pending_rights,
+        (SELECT count(*)::int FROM tracks WHERE processing_status = 'failed') AS failed,
+        (SELECT count(*)::int FROM tracks WHERE processing_status IN ('pending', 'processing')) AS processing,
+        (SELECT count(*)::int FROM tracks t WHERE NOT t.is_published AND t.processing_status = 'ready'
+           AND t.rights_type IN ('original', 'licensed')) AS ready_unpublished,
+        (SELECT count(*)::int FROM tracks t WHERE t.is_published AND NOT EXISTS (SELECT 1 FROM station_tracks st WHERE st.track_id = t.id)) AS not_on_station`),
+      many(`SELECT norm_ar(t.title) AS key, min(t.title) AS title, min(a.name) AS artist,
+              array_agg(t.id ORDER BY t.id) AS ids, count(*)::int AS n
+            FROM tracks t LEFT JOIN artists a ON a.id = t.artist_id
+            GROUP BY norm_ar(t.title), t.artist_id HAVING count(*) > 1
+            ORDER BY count(*) DESC, min(t.title) LIMIT 30`),
+    ]);
+    return { counts, duplicates: dupes, artwork: artworkStatus() };
+  });
+
   // ---- Import from a folder on the server (for hundreds or thousands of songs) ----
   app.get('/api/admin/import/scan', editor, async () => scanImportDir());
   app.get('/api/admin/import/status', editor, async () => importStatus());
@@ -210,6 +300,7 @@ export default async function adminRoutes(app) {
       createMissing: b.createMissing !== false,
       publish: !!b.publish,
       moveFiles: b.moveFiles !== false,
+      fetchArt: !!b.fetchArt,
       categoryId: toInt(b.categoryId),
       stationId: toInt(b.stationId),
       artistName: null,
@@ -255,6 +346,10 @@ export default async function adminRoutes(app) {
         next.license_expires_at, next.is_published,
       ],
     );
+    // Lyrics edited by hand: the timed copy no longer matches, drop it.
+    if (b.lyrics !== undefined && next.lyrics !== current.lyrics) {
+      await query('UPDATE tracks SET lyrics_synced = NULL, lyrics_source = NULL WHERE id = $1', [id]);
+    }
     if (Array.isArray(b.stationIds)) {
       const ids = b.stationIds.map((x) => toInt(x)).filter(Boolean);
       await tx(async (c) => {

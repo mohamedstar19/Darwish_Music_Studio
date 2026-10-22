@@ -24,6 +24,7 @@ export default function ServerImport() {
     createMissing: true,
     publish: false,
     moveFiles: true,
+    fetchArt: true,
   });
   const set = (k) => (e) => setOpts((o) => ({ ...o, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
 
@@ -170,6 +171,10 @@ export default function ServerImport() {
           <label className="check">
             <input type="checkbox" checked={opts.publish} onChange={set('publish')} disabled={opts.rightsType === 'pending'} /> انشرها
             تلقائي أول ما تجهز
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={opts.fetchArt} onChange={set('fetchArt')} /> بعد الاستيراد دوّر على صور الفنانين
+            والبوسترات الناقصة من الإنترنت
           </label>
           <label className="check">
             <input type="checkbox" checked={opts.moveFiles} onChange={set('moveFiles')} /> شيل الملفات من فولدر الاستيراد بعد ما

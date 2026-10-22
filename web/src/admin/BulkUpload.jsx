@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { uploadWithProgress } from '../api.js';
+import { api, uploadWithProgress } from '../api.js';
 import Icon from '../components/Icon.jsx';
 import { useAdminBase } from './base.js';
 
@@ -82,6 +82,7 @@ export default function BulkUpload({ lookups, onUploaded }) {
     rightsSource: '',
     createMissing: true,
     publish: false,
+    fetchArt: true,
   });
   const [stats, setStats] = useState({ total: 0, done: 0, imported: 0, duplicates: 0, failed: 0 });
   const [recent, setRecent] = useState([]);
@@ -150,7 +151,11 @@ export default function BulkUpload({ lookups, onUploaded }) {
     workersRef.current -= 1;
     if (workersRef.current === 0) {
       // Paused with songs still waiting: stay "running" so the resume button stays visible.
-      if (!queueRef.current.length) setRunning(false);
+      if (!queueRef.current.length) {
+        setRunning(false);
+        // All done: look up missing artist photos and posters online (ignored if already running).
+        if (optsRef.current.fetchArt) api.post('/api/admin/artwork/auto', {}).catch(() => {});
+      }
       onUploaded();
     }
   };
@@ -267,6 +272,10 @@ export default function BulkUpload({ lookups, onUploaded }) {
         <label className="check">
           <input type="checkbox" checked={opts.createMissing} onChange={set('createMissing')} /> اعمل تصنيف جديد من اسم الفولدر
           الرئيسي لو مش موجود
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={opts.fetchArt} onChange={set('fetchArt')} /> بعد الرفع دوّر على صور الفنانين والبوسترات
+          الناقصة من الإنترنت
         </label>
         <label className="check">
           <input type="checkbox" checked={opts.publish} onChange={set('publish')} disabled={opts.rightsType === 'pending'} /> انشرها

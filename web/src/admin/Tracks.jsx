@@ -7,6 +7,8 @@ import { useDebounced } from '../hooks.js';
 import { useToast } from '../state/ToastContext.jsx';
 import { RIGHTS_LABEL, STATUS_LABEL } from './ui.jsx';
 import BulkUpload from './BulkUpload.jsx';
+import ImageSearch from './ImageSearch.jsx';
+import LyricsSearch from './LyricsSearch.jsx';
 
 function Select({ value, onChange, options, empty = '—', className = 'input' }) {
   return (
@@ -25,6 +27,8 @@ function EditTrack({ id, lookups, onClose, onSaved }) {
   const toast = useToast();
   const [t, setT] = useState(null);
   const [form, setForm] = useState(null);
+  const [findCover, setFindCover] = useState(false);
+  const [findLyrics, setFindLyrics] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
@@ -137,6 +141,21 @@ function EditTrack({ id, lookups, onClose, onSaved }) {
             {t.coverSource === 'own' ? 'تغيير صورة الأغنية' : 'صورة مختلفة للأغنية دي'}
             <input type="file" accept="image/*" hidden onChange={(e) => e.target.files[0] && uploadCover(e.target.files[0])} />
           </label>
+          <button type="button" className="btn btn-ghost btn-small" onClick={() => setFindCover(true)}>
+            <Icon name="search" size={16} /> غلاف من الإنترنت
+          </button>
+          {findCover ? (
+            <ImageSearch
+              type="track"
+              id={t.id}
+              initialQuery={[t.artistName, t.title].filter(Boolean).join(' ')}
+              onApplied={async () => {
+                setT(await api.get(`/api/admin/tracks/${id}`));
+                onSaved();
+              }}
+              onClose={() => setFindCover(false)}
+            />
+          ) : null}
           {t.coverSource === 'own' ? (
             <button type="button" className="btn btn-ghost btn-small" onClick={resetCover}>
               {t.artistHasPhoto ? 'رجّع لصورة الفنان' : 'شيل صورة الأغنية'}
@@ -246,8 +265,25 @@ function EditTrack({ id, lookups, onClose, onSaved }) {
 
           <div className="form-grid">
             <label>
-              الكلمات (لو الحقوق بتسمح)
+              <span className="label-row">
+                الكلمات (لو الحقوق بتسمح)
+                {t.lyricsSynced ? <span className="status status-ready">متزامنة ✓</span> : null}
+                <button type="button" className="btn btn-ghost btn-small" onClick={() => setFindLyrics(true)}>
+                  كلمات من الإنترنت
+                </button>
+              </span>
               <textarea className="input" rows={6} value={form.lyrics} onChange={set('lyrics')} />
+              {findLyrics ? (
+                <LyricsSearch
+                  track={t}
+                  onApplied={(updated) => {
+                    setT(updated);
+                    setForm((f) => ({ ...f, lyrics: updated.lyrics || '' }));
+                    onSaved();
+                  }}
+                  onClose={() => setFindLyrics(false)}
+                />
+              ) : null}
             </label>
             <label>
               الاعتمادات (تأليف، ألحان، أداء، توزيع)
@@ -275,7 +311,17 @@ export default function Tracks() {
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const [lookups, setLookups] = useState(null);
-  const [filters, setFilters] = useState({ q: '', status: '', rights: '', published: '', category: '', station: '' });
+  // Filters can come from a link (e.g. the library health page: ?missing=image).
+  const [filters, setFilters] = useState(() => ({
+    q: '',
+    status: params.get('status') || '',
+    rights: params.get('rights') || '',
+    published: params.get('published') || '',
+    category: '',
+    station: '',
+    missing: params.get('missing') || '',
+    ready: params.get('ready') || '',
+  }));
   const dq = useDebounced(filters.q, 300);
   const [data, setData] = useState(null);
   const [offset, setOffset] = useState(0);
@@ -360,6 +406,15 @@ export default function Tracks() {
         />
       ) : null}
 
+      {filters.missing || filters.ready ? (
+        <div className="notice" style={{ marginBottom: 10 }}>
+          {{ image: 'أغاني من غير أي صورة', category: 'أغاني من غير تصنيف', artist: 'أغاني من غير فنان', lyrics: 'أغاني من غير كلمات' }[filters.missing] ||
+            'أغاني جاهزة وحقوقها سليمة بس مش منشورة'}{' '}
+          <button type="button" className="btn btn-ghost btn-small" onClick={() => setFilters((f) => ({ ...f, missing: '', ready: '' }))}>
+            شيل الفلتر
+          </button>
+        </div>
+      ) : null}
       <div className="filters">
         <input className="input" placeholder="بحث بالاسم أو الفنان أو العمل" value={filters.q} onChange={setF('q')} />
         <Select value={filters.rights} onChange={setF('rights')} empty="كل الحقوق" options={Object.entries(RIGHTS_LABEL).map(([v, l]) => ({ value: v, label: l }))} />

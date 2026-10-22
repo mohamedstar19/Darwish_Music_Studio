@@ -238,7 +238,7 @@ export default async function catalogRoutes(app) {
   app.get('/api/tracks/:id', async (request) => {
     const id = toInt(request.params.id);
     const row = await one(
-      `${TRACK_SELECT.replace('SELECT t.id,', 'SELECT t.lyrics, t.credits, t.rights_type, t.license_scope, t.created_at, t.id,')}
+      `${TRACK_SELECT.replace('SELECT t.id,', 'SELECT t.lyrics, t.lyrics_synced, t.credits, t.rights_type, t.license_scope, t.created_at, t.id,')}
        WHERE t.id = $1 AND (${PLAYABLE} OR $2)`,
       [id, isStaff(request.currentUser)],
     );
@@ -250,7 +250,7 @@ export default async function catalogRoutes(app) {
       [row.id, row.work_id, row.category_id],
     );
     return {
-      track: { ...shapeTrack(row), lyrics: row.lyrics, credits: row.credits, rightsType: row.rights_type, createdAt: row.created_at,
+      track: { ...shapeTrack(row), lyrics: row.lyrics, lyricsSynced: row.lyrics_synced || null, credits: row.credits, rightsType: row.rights_type, createdAt: row.created_at,
         canDownload: (row.license_scope || []).includes('download') },
       related: shapeTracks(related),
     };

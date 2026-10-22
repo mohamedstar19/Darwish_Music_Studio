@@ -9,6 +9,7 @@ import { useAuth } from '../state/AuthContext.jsx';
 import { useToast } from '../state/ToastContext.jsx';
 import { timeAgo } from './ui.jsx';
 import { useAdminBase } from './base.js';
+import ImageSearch from './ImageSearch.jsx';
 
 function useSaver(reload) {
   const toast = useToast();
@@ -29,6 +30,7 @@ function useSaver(reload) {
 export function Works() {
   const { data, loading, error, reload } = useFetch('/api/admin/works');
   const [edit, setEdit] = useState(null);
+  const [findFor, setFindFor] = useState(null);
   const save = useSaver(reload);
   if (loading && !data) return <Loading />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
@@ -108,6 +110,11 @@ export function Works() {
               صورة الغلاف
               <input name="cover" type="file" accept="image/*" className="input" />
             </label>
+            {edit.id ? (
+              <button type="button" className="btn btn-ghost btn-small" onClick={() => setFindFor(edit)}>
+                <Icon name="search" size={16} /> دوّر على بوستر من الإنترنت
+              </button>
+            ) : null}
             <div className="edit-foot">
               {edit.id ? (
                 <button
@@ -126,6 +133,18 @@ export function Works() {
             </div>
           </form>
         </Modal>
+      ) : null}
+      {findFor ? (
+        <ImageSearch
+          type="work"
+          id={findFor.id}
+          initialQuery={findFor.title}
+          onApplied={(img) => {
+            setEdit((e) => (e && e.id === findFor.id ? { ...e, cover: img } : e));
+            reload();
+          }}
+          onClose={() => setFindFor(null)}
+        />
       ) : null}
     </div>
   );
@@ -799,6 +818,7 @@ export function Artists() {
   const [edit, setEdit] = useState(null);
   const [q, setQ] = useState('');
   const [preview, setPreview] = useState(null);
+  const [findPhoto, setFindPhoto] = useState(false);
   const save = useSaver(reload);
   if (loading && !data) return <Loading />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
@@ -885,6 +905,11 @@ export function Artists() {
                     شيل الصورة
                   </button>
                 ) : null}
+                {edit.id ? (
+                  <button type="button" className="btn btn-ghost btn-small" onClick={() => setFindPhoto(true)}>
+                    <Icon name="search" size={16} /> دوّر على صورة من الإنترنت
+                  </button>
+                ) : null}
                 <small className="muted">صورة مربعة أحسن. هتتقص دايرة وهتتصغر لوحدها.</small>
               </div>
             </div>
@@ -930,6 +955,18 @@ export function Artists() {
             </div>
           </form>
         </Modal>
+      ) : null}
+      {findPhoto && edit?.id ? (
+        <ImageSearch
+          type="artist"
+          id={edit.id}
+          initialQuery={edit.name}
+          onApplied={(img) => {
+            setEdit((e) => (e ? { ...e, photo: img } : e));
+            reload();
+          }}
+          onClose={() => setFindPhoto(false)}
+        />
       ) : null}
     </div>
   );
