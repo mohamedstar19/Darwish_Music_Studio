@@ -47,6 +47,7 @@ services:
       AUDIO_BITRATE: ${AUDIO_BITRATE:-192k}
       PROCESS_CONCURRENCY: ${PROCESS_CONCURRENCY:-2}
       ACOUSTID_KEY: ${ACOUSTID_KEY:-}
+      REQUIRE_STAFF_2FA: ${REQUIRE_STAFF_2FA:-true}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ${MEDIA_PATH:-./data/media}:/data/media

@@ -86,7 +86,7 @@ app.setErrorHandler((err, request, reply) => {
   const status = err.statusCode || 500;
   if (status >= 500) request.log.error(err);
   const message = status >= 500 && !err.expose ? 'حصل خطأ في السيرفر' : err.message;
-  reply.status(status).send({ error: message });
+  reply.status(status).send(err.needTwoFactor ? { error: message, needTwoFactor: true } : { error: message });
 });
 
 // Lets the Android app open this site full screen (no browser bar).

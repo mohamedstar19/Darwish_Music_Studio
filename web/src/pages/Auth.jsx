@@ -16,12 +16,75 @@ function AuthShell({ title, children }) {
   );
 }
 
+/** Second sign-in step: the 6-digit code from the authenticator app (or a recovery code). */
+function CodeStep({ ticket, onDone, onBack }) {
+  const { loginCode } = useAuth();
+  const [recovery, setRecovery] = useState(false);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await loginCode(ticket, new FormData(e.target).get('code'));
+      onDone(r);
+    } catch (err) {
+      setError(err.message);
+      e.target.reset();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <AuthShell title="التحقق بخطوتين">
+      <form className="form" onSubmit={submit} key={recovery ? 'r' : 'a'}>
+        <label>
+          {recovery ? 'كود من أكواد الطوارئ' : 'افتح تطبيق المصادقة على موبايلك واكتب الكود (6 أرقام)'}
+          <input
+            name="code"
+            className="input tfa-input"
+            required
+            autoFocus
+            dir="ltr"
+            autoComplete="one-time-code"
+            {...(recovery ? { placeholder: 'xxxxx-xxxxx', maxLength: 12 } : { inputMode: 'numeric', placeholder: '123456', maxLength: 7 })}
+          />
+        </label>
+        {error ? <p className="form-error">{error}</p> : null}
+        <button className="btn btn-primary btn-lg" disabled={busy}>
+          {busy ? 'لحظة...' : 'تأكيد'}
+        </button>
+      </form>
+      <p className="muted small">
+        <button type="button" className="link-btn" onClick={() => setRecovery((r) => !r)}>
+          {recovery ? 'رجوع لكود التطبيق' : 'الموبايل مش معايا: استخدم كود طوارئ'}
+        </button>
+        {' · '}
+        <button type="button" className="link-btn" onClick={onBack}>
+          حساب تاني
+        </button>
+      </p>
+    </AuthShell>
+  );
+}
+
 export function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [ticket, setTicket] = useState(null);
+
+  const done = (r) => {
+    if (r?.recoveryLeft !== undefined) {
+      window.alert(`دخلت بكود طوارئ. باقيلك ${r.recoveryLeft} كود. لو قربوا يخلصوا اعمل أكواد جديدة من الإعدادات.`);
+    }
+    navigate(location.state?.from || '/', { replace: true });
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -29,14 +92,17 @@ export function Login() {
     setBusy(true);
     setError(null);
     try {
-      await login(f.get('email'), f.get('password'));
-      navigate(location.state?.from || '/', { replace: true });
+      const r = await login(f.get('email'), f.get('password'));
+      if (r.needCode) setTicket(r.ticket);
+      else done(r);
     } catch (err) {
       setError(err.message);
     } finally {
       setBusy(false);
     }
   };
+
+  if (ticket) return <CodeStep ticket={ticket} onDone={done} onBack={() => setTicket(null)} />;
 
   return (
     <AuthShell title="أهلاً بيك تاني">

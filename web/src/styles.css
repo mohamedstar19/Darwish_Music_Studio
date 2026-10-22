@@ -3663,3 +3663,60 @@ html.synth-bg .auth-card {
 .backup-card.bad > b {
   color: #ef4444;
 }
+
+/* ---------- 2-step sign-in ---------- */
+.tfa-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: start;
+}
+
+.tfa-steps {
+  margin: 0;
+  padding-inline-start: 20px;
+  line-height: 1.9;
+}
+
+.tfa-qr {
+  align-self: center;
+  width: 200px;
+  height: 200px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+.tfa-input {
+  font-size: 1.5rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.tfa-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--line);
+  background: var(--surface-2, var(--surface));
+}
+
+.tfa-codes code {
+  font-size: 1.05rem;
+  text-align: center;
+  letter-spacing: 0.05em;
+}
+
+.tfa-gate {
+  max-width: 460px;
+}
+
+.row-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

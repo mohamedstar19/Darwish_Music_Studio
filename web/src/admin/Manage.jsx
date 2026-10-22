@@ -770,6 +770,7 @@ export function Users() {
                   <td className="muted small">{u.lastLoginAt ? timeAgo(u.lastLoginAt) : '—'}</td>
                   <td>
                     {u.isDisabled ? <span className="status status-failed">موقوف</span> : <span className="status status-ready">نشط</span>}
+                    {u.twoFactor ? <span className="status status-approved" title="التحقق بخطوتين شغال">🔒 خطوتين</span> : null}
                   </td>
                   <td className="nowrap">
                     {u.id !== me.id ? (
@@ -784,6 +785,18 @@ export function Users() {
                     <button type="button" className="btn btn-ghost btn-small" onClick={() => setResetFor(u)}>
                       كلمة مرور جديدة
                     </button>
+                    {u.twoFactor && u.id !== me.id ? (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-small"
+                        onClick={() =>
+                          window.confirm(`تلغي التحقق بخطوتين لـ ${u.displayName}؟ (لو ضاع موبايله) هيدخل بكلمة المرور ويفعّله تاني.`) &&
+                          save(() => api.patch(`/api/admin/users/${u.id}`, { resetTwoFactor: true }), 'التحقق بخطوتين اتلغى')
+                        }
+                      >
+                        إلغاء الخطوتين
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))}

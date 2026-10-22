@@ -5,6 +5,7 @@ import { CountUp, Cover, Empty, ErrorBox, Loading, Modal, PageHeader, Section } 
 import Icon from '../components/Icon.jsx';
 import { useTheme } from '../components/Layout.jsx';
 import BackgroundPicker from '../components/BackgroundPicker.jsx';
+import TwoFactorSettings from '../components/TwoFactor.jsx';
 import { PlaylistCard, TrackList } from '../components/Tracks.jsx';
 import { useFetch } from '../hooks.js';
 import { useAuth } from '../state/AuthContext.jsx';
@@ -534,6 +535,11 @@ function SettingsInner() {
         </label>
         <button className="btn btn-primary">حفظ</button>
       </form>
+
+      <div className="form card-box" id="two-factor">
+        <h3>التحقق بخطوتين</h3>
+        <TwoFactorSettings />
+      </div>
 
       <div className="form card-box">
         <h3>المظهر</h3>

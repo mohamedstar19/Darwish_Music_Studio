@@ -36,9 +36,21 @@ export function AuthProvider({ children }) {
   const login = useCallback(
     async (email, password) => {
       const data = await api.post('/api/auth/login', { email, password });
+      // 2-step accounts: the page asks for the code next.
+      if (data.needCode) return { needCode: true, ticket: data.ticket };
       setUser(data.user);
       loadFavorites();
-      return data.user;
+      return { user: data.user };
+    },
+    [loadFavorites],
+  );
+
+  const loginCode = useCallback(
+    async (ticket, code) => {
+      const data = await api.post('/api/auth/login/code', { ticket, code });
+      setUser(data.user);
+      loadFavorites();
+      return data;
     },
     [loadFavorites],
   );
@@ -88,12 +100,13 @@ export function AuthProvider({ children }) {
       // Secret admin panel URL, known only to staff.
       adminUrl: user?.adminPath ? `/${user.adminPath}` : null,
       login,
+      loginCode,
       register,
       logout,
       favoriteIds,
       toggleFavorite,
     }),
-    [user, ready, allowRegistration, login, register, logout, favoriteIds, toggleFavorite],
+    [user, ready, allowRegistration, login, loginCode, register, logout, favoriteIds, toggleFavorite],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

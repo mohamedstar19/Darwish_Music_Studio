@@ -15,6 +15,9 @@ import {
   validatePassword,
 } from '../auth.js';
 import { cleanText, httpError } from '../util.js';
+import {
+  beginSetup, confirmSetup, disableTwoFactor, recoveryLeft, regenerateRecovery, twoFactorOn, verifySecondStep,
+} from '../twofactor.js';
 
 const authLimit = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
 const registerLimit = { config: { rateLimit: { max: 5, timeWindow: '1 hour' } } };
@@ -54,9 +57,79 @@ export default async function authRoutes(app) {
     }
     loginSucceeded(e);
     if (user.is_disabled) throw httpError(403, 'الحساب ده موقوف');
+    // 2-step accounts: the password alone only earns a 5-minute ticket for the code step.
+    if (twoFactorOn(user)) {
+      return { needCode: true, ticket: app.jwt.sign({ tfa: user.id }, { expiresIn: '5m' }) };
+    }
     await one('UPDATE users SET last_login_at = now() WHERE id = $1 RETURNING id', [user.id]);
     await setAuthCookie(reply, user);
     return { user: publicUser(user) };
+  });
+
+  // Second step of signing in: the 6-digit code from the app, or a recovery code.
+  app.post('/api/auth/login/code', authLimit, async (request, reply) => {
+    let ticket;
+    try {
+      ticket = app.jwt.verify(String(request.body?.ticket || ''));
+    } catch {
+      throw httpError(401, 'الوقت خلص. سجّل دخول تاني.');
+    }
+    if (!ticket?.tfa) throw httpError(401, 'سجّل دخول تاني');
+    const key = `tfa:${ticket.tfa}`;
+    const locked = loginLocked(key);
+    if (locked) throw httpError(429, `أكواد غلط كتير. جرب بعد ${locked} دقيقة.`);
+    const user = await one('SELECT * FROM users WHERE id = $1', [Number(ticket.tfa)]);
+    if (!user || user.is_disabled) throw httpError(401, 'سجّل دخول تاني');
+    const how = await verifySecondStep(user.id, String(request.body?.code || '').slice(0, 40));
+    if (!how) {
+      loginFailed(key);
+      throw httpError(401, 'الكود غلط أو استخدمته قبل كده. استنى الكود الجاي في التطبيق.');
+    }
+    loginSucceeded(key);
+    loginSucceeded(user.email);
+    await one('UPDATE users SET last_login_at = now() WHERE id = $1 RETURNING id', [user.id]);
+    await setAuthCookie(reply, user);
+    return { user: publicUser(user), recoveryLeft: how === 'recovery' ? await recoveryLeft(user.id) : undefined };
+  });
+
+  // ---- 2-step sign-in settings (any signed-in user; required for staff) ----
+  const tfaLimit = { onRequest: requireUser, config: { rateLimit: { max: 10, timeWindow: '10 minutes' } } };
+
+  app.get('/api/auth/2fa', { onRequest: requireUser }, async (request) => ({
+    enabled: twoFactorOn(request.currentUser),
+    recoveryLeft: twoFactorOn(request.currentUser) ? await recoveryLeft(request.currentUser.id) : 0,
+    required: config.requireStaff2fa && ['editor', 'admin'].includes(request.currentUser.role),
+  }));
+
+  app.post('/api/auth/2fa/setup', tfaLimit, async (request) => {
+    if (twoFactorOn(request.currentUser)) throw httpError(400, 'التحقق بخطوتين شغال بالفعل');
+    return beginSetup(request.currentUser);
+  });
+
+  app.post('/api/auth/2fa/confirm', tfaLimit, async (request) => {
+    if (twoFactorOn(request.currentUser)) throw httpError(400, 'التحقق بخطوتين شغال بالفعل');
+    const codes = await confirmSetup(request.currentUser.id, request.body?.code);
+    const user = await one('SELECT * FROM users WHERE id = $1', [request.currentUser.id]);
+    return { recoveryCodes: codes, user: publicUser(user) };
+  });
+
+  // Turning it off or making new recovery codes needs the password and a current code.
+  async function checkBoth(request) {
+    const u = request.currentUser;
+    if (!(await checkPassword(String(request.body?.password || ''), u.password_hash))) throw httpError(400, 'كلمة المرور غلط');
+    if (!(await verifySecondStep(u.id, String(request.body?.code || '')))) throw httpError(400, 'الكود غلط');
+  }
+
+  app.post('/api/auth/2fa/disable', tfaLimit, async (request) => {
+    await checkBoth(request);
+    await disableTwoFactor(request.currentUser.id);
+    const user = await one('SELECT * FROM users WHERE id = $1', [request.currentUser.id]);
+    return { user: publicUser(user) };
+  });
+
+  app.post('/api/auth/2fa/recovery', tfaLimit, async (request) => {
+    await checkBoth(request);
+    return { recoveryCodes: await regenerateRecovery(request.currentUser.id) };
   });
 
   app.post('/api/auth/logout', async (request, reply) => {

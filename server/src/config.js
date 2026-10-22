@@ -34,6 +34,8 @@ export const config = {
   importDir: path.resolve(env.IMPORT_DIR || path.join(env.MEDIA_DIR || './data/media', '..', 'import')),
   // Secret URL segment for the admin panel (https://site/<adminPath>). Only staff are told it,
   // and every /api/admin call must carry it too. Falls back to "admin" when unset.
+  // Staff (editors/admins) must turn on 2-step sign-in before using the admin panel.
+  requireStaff2fa: env.REQUIRE_STAFF_2FA !== 'false',
   adminPath: (env.ADMIN_PATH || 'admin').replace(/[^A-Za-z0-9_-]/g, '') || 'admin',
   // Android app (Trusted Web Activity) verification: /.well-known/assetlinks.json.
   // ANDROID_SHA256 = comma-separated SHA-256 fingerprints (upload key + Google Play app signing key).

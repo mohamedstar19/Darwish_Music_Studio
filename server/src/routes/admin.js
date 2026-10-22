@@ -6,6 +6,7 @@ import { many, one, PLAYABLE, query, tx } from '../db.js';
 import { enqueueTrack, queueLength, removeMedia, saveAudioUpload, saveUpload } from '../media.js';
 import { importStatus, importStoredFile, scanImportDir, startImport, stopImport } from '../importer.js';
 import { applyLyrics, searchLyrics } from '../lyrics.js';
+import { disableTwoFactor } from '../twofactor.js';
 import {
   applyName, dismissSuggestion, fpcalcAvailable, getSetting, identifyStatus, identifyTrack, reviewList, setSetting,
   startIdentifyJob, stopIdentifyJob, SUSPICIOUS_SQL, testAcoustidKey,
@@ -962,6 +963,11 @@ export default async function adminRoutes(app) {
     if (b.newPassword) {
       validatePassword(b.newPassword);
       hash = await hashPassword(b.newPassword);
+    }
+    // Lost phone: an admin turns off someone else's 2-step sign-in (they set it up again).
+    if (b.resetTwoFactor) {
+      if (id === request.currentUser.id) throw httpError(400, 'مينفعش تلغي التحقق بخطوتين لحسابك من هنا. استخدم الإعدادات.');
+      await disableTwoFactor(id);
     }
     const updated = await one(
       'UPDATE users SET role = $2, is_disabled = $3, password_hash = $4 WHERE id = $1 RETURNING *',

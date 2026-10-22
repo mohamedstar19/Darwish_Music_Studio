@@ -8,6 +8,27 @@ import Tracks from './Tracks.jsx';
 import ServerImport from './ServerImport.jsx';
 import Health from './Health.jsx';
 import { AdminBase } from './base.js';
+import TwoFactorSettings from '../components/TwoFactor.jsx';
+
+/** Staff must turn on 2-step sign-in before the admin panel opens. */
+function NeedTwoFactor() {
+  return (
+    <div className="auth-page">
+      <div className="auth-card tfa-gate">
+        <img className="auth-logo" src="/logo-192.png" alt="" width="96" height="96" />
+        <h1>أمّن حساب الإدارة</h1>
+        <p className="muted">
+          لوحة الإدارة فيها كل الأغاني والمستخدمين، فلازم تفعّل التحقق بخطوتين الأول. هياخد دقيقة واحدة، وبعدها كل مرة تسجل دخول
+          هتكتب كود من موبايلك.
+        </p>
+        <TwoFactorSettings />
+        <Link to="/" className="muted small">
+          رجوع للموقع
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 const NAV = [
   { to: '', icon: 'chart', label: 'نظرة عامة', end: true },
@@ -31,6 +52,7 @@ export default function Admin({ base }) {
   if (!ready) return <Loading />;
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   if (!isStaff) return <Navigate to="/" replace />;
+  if (!user.twoFactor) return <NeedTwoFactor />;
 
   return (
     <AdminBase.Provider value={base}>

@@ -83,6 +83,7 @@ export function publicUser(u) {
     role: u.role,
     historyEnabled: u.history_enabled,
     createdAt: u.created_at,
+    twoFactor: !!u.totp_enabled_at,
     // Only staff learn where the admin panel lives.
     ...(['editor', 'admin'].includes(u.role) ? { adminPath: config.adminPath } : {}),
   };
@@ -123,14 +124,22 @@ export async function requireUser(request) {
   if (!request.currentUser) throw httpError(401, 'لازم تسجل الدخول الأول');
 }
 
+function requireTwoFactor(user) {
+  if (config.requireStaff2fa && !user.totp_enabled_at) {
+    throw Object.assign(httpError(403, 'لازم تفعّل التحقق بخطوتين الأول عشان تستخدم لوحة الإدارة'), { needTwoFactor: true });
+  }
+}
+
 export async function requireEditor(request) {
   await requireUser(request);
   if (!['editor', 'admin'].includes(request.currentUser.role)) throw httpError(403, 'غير مسموح');
+  requireTwoFactor(request.currentUser);
 }
 
 export async function requireAdmin(request) {
   await requireUser(request);
   if (request.currentUser.role !== 'admin') throw httpError(403, 'غير مسموح');
+  requireTwoFactor(request.currentUser);
 }
 
 export function isStaff(user) {
