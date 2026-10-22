@@ -36,9 +36,12 @@ services:
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-300}
       AUDIO_BITRATE: ${AUDIO_BITRATE:-192k}
+      PROCESS_CONCURRENCY: ${PROCESS_CONCURRENCY:-2}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ${MEDIA_PATH:-./data/media}:/data/media
+      # Drop songs here (any folder structure) and use "استيراد من السيرفر" in the admin panel.
+      - ${IMPORT_PATH:-./data/import}:/data/import
     ports:
       - "${APP_PORT:-8095}:8080"
 

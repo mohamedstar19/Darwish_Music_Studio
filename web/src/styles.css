@@ -3258,3 +3258,87 @@ html.synth-bg .auth-card {
   flex-shrink: 0;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
+
+/* ===== Bulk upload / import ===== */
+.check-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 4px;
+  font-size: 0.9rem;
+}
+
+.bulk-progress {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bulk-progress-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.bulk-progress .bar {
+  height: 10px;
+}
+
+.upload-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.upload-results li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+
+.upload-results li:last-child {
+  border-bottom: 0;
+}
+
+.upload-results .mark {
+  font-weight: 900;
+  width: 16px;
+  text-align: center;
+}
+
+.upload-results .ok .mark {
+  color: var(--good);
+}
+
+.upload-results .dup .mark {
+  color: var(--muted);
+}
+
+.upload-results .bad .mark {
+  color: var(--bad);
+}
+
+.import-path {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.05rem;
+}
+
+.import-path code,
+.upload-panel code,
+.card-box code {
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 0.85em;
+}

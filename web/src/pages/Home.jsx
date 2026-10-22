@@ -127,6 +127,12 @@ export default function Home() {
         </Section>
       ) : null}
 
+      {data.categoryShelves?.map((c) => (
+        <Section key={c.id} title={c.name} to={`/category/${c.slug}`}>
+          <TrackShelf tracks={c.tracks} />
+        </Section>
+      ))}
+
       {data.works.length ? (
         <Section title="كرتون وأنمي" to="/explore">
           <Shelf>

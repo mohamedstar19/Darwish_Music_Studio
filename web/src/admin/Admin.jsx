@@ -5,12 +5,14 @@ import { useAuth } from '../state/AuthContext.jsx';
 import { Dashboard, Live } from './Dashboard.jsx';
 import { Artists, Categories, OfficialPlaylists, Reports, Requests, Stations, Users, Works } from './Manage.jsx';
 import Tracks from './Tracks.jsx';
+import ServerImport from './ServerImport.jsx';
 import { AdminBase } from './base.js';
 
 const NAV = [
   { to: '', icon: 'chart', label: 'نظرة عامة', end: true },
   { to: '/live', icon: 'radio', label: 'مباشر: مين بيسمع' },
   { to: '/tracks', icon: 'music', label: 'الأغاني' },
+  { to: '/import', icon: 'upload', label: 'استيراد جماعي' },
   { to: '/works', icon: 'library', label: 'الأعمال' },
   { to: '/categories', icon: 'list', label: 'التصنيفات' },
   { to: '/artists', icon: 'user', label: 'الفنانين' },
@@ -49,6 +51,7 @@ export default function Admin({ base }) {
               <Route index element={<Dashboard />} />
               <Route path="live" element={<Live />} />
               <Route path="tracks" element={<Tracks />} />
+              <Route path="import" element={<ServerImport />} />
               <Route path="works" element={<Works />} />
               <Route path="categories" element={<Categories />} />
               <Route path="artists" element={<Artists />} />

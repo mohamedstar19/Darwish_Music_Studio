@@ -19,10 +19,10 @@ export async function ensureMediaDirs() {
   for (const dir of Object.values(dirs)) await fsp.mkdir(dir, { recursive: true });
 }
 
-const AUDIO_EXT = new Set(['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.opus', '.wma', '.webm', '.mp4']);
-const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+export const AUDIO_EXT = new Set(['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.opus', '.wma', '.webm', '.mp4']);
+export const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 
-function randomName(ext) {
+export function randomName(ext) {
   return `${Date.now().toString(36)}-${crypto.randomBytes(6).toString('hex')}${ext}`;
 }
 
@@ -47,6 +47,50 @@ export async function saveUpload(part, kind) {
   }
   if (kind === 'image') return finalizeCover(target);
   return name;
+}
+
+/**
+ * Stream an uploaded audio file to originals/ while computing its SHA-1, so the same
+ * song uploaded twice can be recognised. Returns { name, hash, size }.
+ */
+export async function saveAudioUpload(part) {
+  const ext = path.extname(part.filename || '').toLowerCase();
+  if (!AUDIO_EXT.has(ext)) {
+    part.file.resume();
+    const err = new Error('نوع ملف الصوت غير مدعوم');
+    err.statusCode = 400;
+    throw err;
+  }
+  const name = randomName(ext);
+  const target = path.join(dirs.originals, name);
+  const hasher = crypto.createHash('sha1');
+  let size = 0;
+  part.file.on('data', (chunk) => {
+    hasher.update(chunk);
+    size += chunk.length;
+  });
+  await pipeline(part.file, fs.createWriteStream(target));
+  if (part.file.truncated) {
+    await fsp.rm(target, { force: true });
+    const err = new Error('الملف أكبر من الحد المسموح');
+    err.statusCode = 413;
+    throw err;
+  }
+  return { name, hash: hasher.digest('hex'), size };
+}
+
+/** SHA-1 of a file on disk (server-folder import). */
+export async function hashFile(filePath) {
+  const hasher = crypto.createHash('sha1');
+  await pipeline(fs.createReadStream(filePath), hasher);
+  return hasher.digest('hex');
+}
+
+/** Copy an image from disk into covers/ (resized). Returns the cover file name. */
+export async function importImage(filePath) {
+  const tmp = path.join(dirs.tmp, randomName(path.extname(filePath).toLowerCase() || '.jpg'));
+  await fsp.copyFile(filePath, tmp);
+  return finalizeCover(tmp);
 }
 
 function runFfmpeg(args) {
@@ -93,36 +137,41 @@ export async function readTags(originalName) {
       artist: c.artist || c.albumartist || null,
       album: c.album || null,
       year: c.year || null,
+      genre: Array.isArray(c.genre) ? c.genre.join(' ') : c.genre || null,
     };
   } catch {
     return {};
   }
 }
 
-// ---- Background processing queue (one job at a time) ----
+// ---- Background processing queue (a few songs at a time) ----
 
 const queue = [];
-let running = false;
+const queued = new Set();
+let active = 0;
 
 export function enqueueTrack(trackId) {
-  if (!queue.includes(trackId)) queue.push(trackId);
-  void drain();
+  if (queued.has(trackId)) return;
+  queued.add(trackId);
+  queue.push(trackId);
+  pump();
 }
 
 export function queueLength() {
-  return queue.length + (running ? 1 : 0);
+  return queue.length + active;
 }
 
-async function drain() {
-  if (running) return;
-  running = true;
-  try {
-    while (queue.length) {
-      const id = queue.shift();
-      await processTrack(id).catch(() => {});
-    }
-  } finally {
-    running = false;
+function pump() {
+  while (active < config.processConcurrency && queue.length) {
+    const id = queue.shift();
+    active += 1;
+    processTrack(id)
+      .catch(() => {})
+      .finally(() => {
+        active -= 1;
+        queued.delete(id);
+        pump();
+      });
   }
 }
 
@@ -172,9 +221,13 @@ async function processTrack(id) {
       }
     }
 
+    // Imports marked "publish automatically" go live now, if their rights allow it.
     await query(
       `UPDATE tracks SET processing_status = 'ready', audio_path = $2, duration_sec = $3,
-              file_size = $4, cover_path = $5, updated_at = now()
+              file_size = $4, cover_path = $5, updated_at = now(),
+              is_published = is_published OR (auto_publish AND rights_type IN ('original', 'licensed')
+                AND (license_expires_at IS NULL OR license_expires_at >= CURRENT_DATE)),
+              auto_publish = FALSE
        WHERE id = $1`,
       [id, outName, duration, size, coverName],
     );

@@ -6,6 +6,7 @@ import Icon from '../components/Icon.jsx';
 import { useDebounced } from '../hooks.js';
 import { useToast } from '../state/ToastContext.jsx';
 import { RIGHTS_LABEL, STATUS_LABEL } from './ui.jsx';
+import BulkUpload from './BulkUpload.jsx';
 
 function Select({ value, onChange, options, empty = '—', className = 'input' }) {
   return (
@@ -17,128 +18,6 @@ function Select({ value, onChange, options, empty = '—', className = 'input' }
         </option>
       ))}
     </select>
-  );
-}
-
-function UploadPanel({ lookups, onUploaded }) {
-  const toast = useToast();
-  const [defaults, setDefaults] = useState({ categoryId: '', workId: '', stationId: '', rightsType: 'pending', rightsSource: '', artistName: '' });
-  const [items, setItems] = useState([]);
-  const [drag, setDrag] = useState(false);
-  const inputRef = useRef(null);
-
-  const set = (k) => (v) => setDefaults((d) => ({ ...d, [k]: v }));
-
-  const uploadFiles = async (files) => {
-    const list = [...files].map((f, i) => ({ key: `${Date.now()}-${i}`, name: f.name, size: f.size, progress: 0, status: 'waiting', file: f }));
-    setItems((prev) => [...list, ...prev].slice(0, 50));
-    for (const item of list) {
-      setItems((prev) => prev.map((x) => (x.key === item.key ? { ...x, status: 'uploading' } : x)));
-      const fd = new FormData();
-      Object.entries(defaults).forEach(([k, v]) => v && fd.append(k, v));
-      fd.append('file', item.file);
-      try {
-        await uploadWithProgress('/api/admin/tracks/upload', fd, (p) =>
-          setItems((prev) => prev.map((x) => (x.key === item.key ? { ...x, progress: p } : x))),
-        );
-        setItems((prev) => prev.map((x) => (x.key === item.key ? { ...x, status: 'done', progress: 1 } : x)));
-        onUploaded();
-      } catch (err) {
-        setItems((prev) => prev.map((x) => (x.key === item.key ? { ...x, status: 'error', error: err.message } : x)));
-        toast(`${item.name}: ${err.message}`, 'error');
-      }
-    }
-  };
-
-  return (
-    <div className="card-box upload-panel">
-      <h3>رفع أغاني</h3>
-      <p className="muted small">
-        القيم دي هتتطبق على كل الملفات اللي هترفعها. السيرفر هيحوّل كل ملف لـ MP3 بصوت موحّد (Loudness normalization)،
-        ويقرا الاسم والمدة والغلاف من الملف لوحده.
-      </p>
-      <div className="form-grid">
-        <label>
-          التصنيف
-          <Select value={defaults.categoryId} onChange={set('categoryId')} options={lookups.categories.map((c) => ({ value: c.id, label: c.name }))} />
-        </label>
-        <label>
-          العمل (الكرتون/الأنمي)
-          <Select value={defaults.workId} onChange={set('workId')} options={lookups.works.map((w) => ({ value: w.id, label: w.title }))} />
-        </label>
-        <label>
-          ضيفها لمحطة
-          <Select value={defaults.stationId} onChange={set('stationId')} options={lookups.stations.map((s) => ({ value: s.id, label: s.name }))} />
-        </label>
-        <label>
-          الفنان (لو الملف مفيهوش)
-          <input className="input" value={defaults.artistName} onChange={(e) => set('artistName')(e.target.value)} list="artists-list" />
-        </label>
-        <label>
-          حالة الحقوق
-          <select className="input" value={defaults.rightsType} onChange={(e) => set('rightsType')(e.target.value)}>
-            <option value="pending">قيد المراجعة (مش هتتنشر)</option>
-            <option value="original">عمل أصلي</option>
-            <option value="licensed">مرخّص</option>
-          </select>
-        </label>
-        <label>
-          مصدر الحقوق / الترخيص
-          <input className="input" value={defaults.rightsSource} onChange={(e) => set('rightsSource')(e.target.value)} placeholder="مثلاً: عقد رقم ... / إنتاج داخلي" />
-        </label>
-      </div>
-      <datalist id="artists-list">
-        {lookups.artists.map((a) => (
-          <option key={a.id} value={a.name} />
-        ))}
-      </datalist>
-      <div
-        className={`dropzone ${drag ? 'drag' : ''}`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDrag(true);
-        }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDrag(false);
-          if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
-        }}
-        onClick={() => inputRef.current?.click()}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
-      >
-        <Icon name="upload" size={32} />
-        <b>اسحب ملفات الصوت هنا أو دوس للاختيار</b>
-        <span className="muted small">MP3, M4A, WAV, FLAC, OGG, OPUS — ممكن تختار كذا ملف مرة واحدة</span>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="audio/*,.mp3,.m4a,.wav,.flac,.ogg,.opus,.aac"
-          multiple
-          hidden
-          onChange={(e) => {
-            if (e.target.files.length) uploadFiles(e.target.files);
-            e.target.value = '';
-          }}
-        />
-      </div>
-      {items.length ? (
-        <ul className="upload-list">
-          {items.map((x) => (
-            <li key={x.key} className={`upload-${x.status}`}>
-              <span className="grow">{x.name}</span>
-              <span className="muted small">{formatBytes(x.size)}</span>
-              <div className="bar">
-                <i style={{ width: `${x.progress * 100}%` }} />
-              </div>
-              <small>{x.status === 'done' ? '✓' : x.status === 'error' ? x.error : x.status === 'waiting' ? 'مستني' : `${Math.round(x.progress * 100)}%`}</small>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
   );
 }
 
@@ -472,7 +351,7 @@ export default function Tracks() {
         </button>
       </div>
       {showUpload ? (
-        <UploadPanel
+        <BulkUpload
           lookups={lookups}
           onUploaded={() => {
             load();

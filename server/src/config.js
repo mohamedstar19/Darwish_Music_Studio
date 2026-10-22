@@ -26,6 +26,10 @@ export const config = {
   maxUploadMb: Number(env.MAX_UPLOAD_MB || 300),
   audioBitrate: env.AUDIO_BITRATE || '192k',
   ffmpegPath: env.FFMPEG_PATH || 'ffmpeg',
+  // How many songs are converted at the same time (each uses one CPU core).
+  processConcurrency: Math.max(1, Number(env.PROCESS_CONCURRENCY || 2)),
+  // Folder scanned by "import from server folder" (bulk import of many songs).
+  importDir: path.resolve(env.IMPORT_DIR || path.join(env.MEDIA_DIR || './data/media', '..', 'import')),
   // Secret URL segment for the admin panel (https://site/<adminPath>). Only staff are told it,
   // and every /api/admin call must carry it too. Falls back to "admin" when unset.
   adminPath: (env.ADMIN_PATH || 'admin').replace(/[^A-Za-z0-9_-]/g, '') || 'admin',

@@ -87,7 +87,21 @@ export default async function catalogRoutes(app) {
           )
         : [],
     ]);
+    // One row per category that has songs (أغاني الأفلام, أنمي, …), newest first.
+    const shelfCats = categories.filter((c) => c.track_count > 0).slice(0, 8);
+    const categoryShelves = await Promise.all(
+      shelfCats.map(async (c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        color: c.color,
+        tracks: shapeTracks(
+          await many(`${TRACK_SELECT} WHERE t.category_id = $1 AND ${PLAYABLE} ORDER BY t.created_at DESC LIMIT 12`, [c.id]),
+        ),
+      })),
+    );
     return {
+      categoryShelves,
       categories: categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug, color: c.color, trackCount: c.track_count })),
       stations: stations.map(shapeStation),
       newest: shapeTracks(newest),

@@ -1,6 +1,7 @@
 import { hashPassword, publicUser, requireAdmin, requireAdminGate, requireEditor, validatePassword } from '../auth.js';
 import { many, one, PLAYABLE, query, tx } from '../db.js';
-import { enqueueTrack, queueLength, readTags, removeMedia, saveUpload } from '../media.js';
+import { enqueueTrack, queueLength, removeMedia, saveAudioUpload, saveUpload } from '../media.js';
+import { importStatus, importStoredFile, scanImportDir, startImport, stopImport } from '../importer.js';
 import { coverUrl, shapeStation } from '../shape.js';
 import { cleanText, httpError, likePattern, slugify, toInt } from '../util.js';
 import { officialPlaylists } from './catalog.js';
@@ -151,55 +152,70 @@ export default async function adminRoutes(app) {
 
   app.get('/api/admin/tracks/:id', editor, async (request) => getAdminTrack(toInt(request.params.id)));
 
-  // Upload one audio file. Send text fields before the file in the multipart body.
+  // Upload one audio file. Text fields first, then an optional `cover` image (the folder's picture),
+  // then `file`. With smart=1 the category / work / artist come from the folder path and the tags.
   app.post('/api/admin/tracks/upload', editor, async (request) => {
     const fields = {};
-    let originalName = null;
+    let stored = null;
+    let folderCover = null;
     let uploadedName = null;
     for await (const part of request.parts()) {
       if (part.type === 'field') {
         fields[part.fieldname] = part.value;
-      } else if (part.fieldname === 'file' && !originalName) {
-        originalName = await saveUpload(part, 'audio');
+      } else if (part.fieldname === 'cover' && !folderCover && !stored) {
+        folderCover = await saveUpload(part, 'image').catch(() => null);
+      } else if (part.fieldname === 'file' && !stored) {
+        stored = await saveAudioUpload(part);
         uploadedName = part.filename;
       } else {
         part.file.resume();
       }
     }
-    if (!originalName) throw httpError(400, 'اختار ملف صوت');
-    const tags = await readTags(originalName);
-    const baseName = String(uploadedName || 'track').replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').trim();
-    const rightsType = RIGHTS.includes(fields.rightsType) ? fields.rightsType : 'pending';
-    const track = await tx(async (c) => {
-      const artistId = await artistIdFor(fields.artistName || tags.artist, c);
-      const { rows } = await c.query(
-        `INSERT INTO tracks (title, artist_id, work_id, category_id, year, original_path, rights_type, rights_source)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-        [
-          cleanText(fields.title, 200) || cleanText(tags.title, 200) || baseName,
-          artistId,
-          toInt(fields.workId),
-          toInt(fields.categoryId),
-          toInt(fields.year) || toInt(tags.year),
-          originalName,
-          rightsType,
-          cleanText(fields.rightsSource, 300),
-        ],
-      );
-      const id = rows[0].id;
-      const stationId = toInt(fields.stationId);
-      if (stationId) {
-        await c.query(
-          `INSERT INTO station_tracks (station_id, track_id, position)
-           VALUES ($1, $2, (SELECT coalesce(max(position), 0) + 1 FROM station_tracks WHERE station_id = $1))
-           ON CONFLICT DO NOTHING`,
-          [stationId, id],
-        );
-      }
-      return id;
+    if (!stored) throw httpError(400, 'اختار ملف صوت');
+    const smart = fields.smart === '1';
+    const opts = {
+      auto: smart,
+      createMissing: fields.createMissing === '1',
+      publish: fields.publish === '1',
+      categoryId: toInt(fields.categoryId),
+      workId: toInt(fields.workId),
+      stationId: toInt(fields.stationId),
+      artistName: cleanText(fields.artistName, 120),
+      title: smart ? null : cleanText(fields.title, 200),
+      rightsType: fields.rightsType,
+      rightsSource: fields.rightsSource,
+    };
+    const result = await importStoredFile({
+      originalName: stored.name,
+      hash: stored.hash,
+      relPath: cleanText(fields.relPath, 1000) || uploadedName || 'track',
+      folderCover,
+      opts,
     });
-    enqueueTrack(track);
-    return getAdminTrack(track);
+    if (folderCover) {
+      const used = await one('SELECT 1 FROM works WHERE cover_path = $1 LIMIT 1', [folderCover]);
+      if (!used) await removeMedia('covers', folderCover);
+    }
+    return { ...result, track: await getAdminTrack(result.trackId) };
+  });
+
+  // ---- Import from a folder on the server (for hundreds or thousands of songs) ----
+  app.get('/api/admin/import/scan', editor, async () => scanImportDir());
+  app.get('/api/admin/import/status', editor, async () => importStatus());
+  app.post('/api/admin/import/stop', editor, async () => stopImport());
+  app.post('/api/admin/import/start', editor, async (request) => {
+    const b = request.body || {};
+    return startImport({
+      auto: true,
+      createMissing: b.createMissing !== false,
+      publish: !!b.publish,
+      moveFiles: b.moveFiles !== false,
+      categoryId: toInt(b.categoryId),
+      stationId: toInt(b.stationId),
+      artistName: null,
+      rightsType: RIGHTS.includes(b.rightsType) ? b.rightsType : 'pending',
+      rightsSource: cleanText(b.rightsSource, 300),
+    });
   });
 
   app.patch('/api/admin/tracks/:id', editor, async (request) => {

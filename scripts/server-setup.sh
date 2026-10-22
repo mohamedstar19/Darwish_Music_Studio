@@ -49,7 +49,7 @@ EOF
 else
   echo "ENV_EXISTS (kept)"
 fi
-mkdir -p data/media
+mkdir -p data/media data/import
 
 echo "== deploy"
 chmod +x scripts/*.sh
