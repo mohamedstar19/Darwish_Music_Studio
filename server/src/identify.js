@@ -161,11 +161,15 @@ function bySound(results, duration) {
   const map = new Map();
   for (const r of results) {
     if (!(r.score >= 0.5)) continue;
-    for (const rec of r.recordings || []) {
-      if (!rec.title) continue;
-      const artist = (rec.artists || []).map((a) => a.name + (a.joinphrase || '')).join('').trim() || null;
+    const recs = (r.recordings || []).filter((rec) => rec.title);
+    // MusicBrainz leftovers: "[unknown]" artist and no length, next to the real recording.
+    const real = recs.filter((rec) => rec.duration && !(rec.artists || []).some((a) => a.name === '[unknown]'));
+    for (const rec of real.length ? real : recs) {
+      const artist = (rec.artists || []).filter((a) => a.name !== '[unknown]').map((a) => a.name + (a.joinphrase || '')).join('').trim() || null;
       const key = `${rec.title}|${artist}`.toLowerCase();
-      const conf = r.score * durationFactor(duration, rec.duration, 5);
+      // Compressed files often score ~0.75 on a true match; the same length to within 3 s confirms it.
+      const lengthAgrees = duration && rec.duration && Math.abs(duration - rec.duration) <= 3;
+      const conf = lengthAgrees && r.score >= 0.65 ? Math.min(1, r.score + 0.15) : r.score * durationFactor(duration, rec.duration, 5);
       const prev = map.get(key);
       if (prev) {
         prev.votes += 1;
