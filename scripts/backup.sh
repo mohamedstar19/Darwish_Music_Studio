@@ -72,14 +72,14 @@ $T 1800 docker compose exec -T db pg_dump -U dms -d dms --format=custom > "$DUMP
 [ -s "$DUMP.part" ] || fail "نسخة قاعدة البيانات فاضية"
 
 TRACKS_LIVE=$(docker compose exec -T db psql -U dms -d dms -tAc "SELECT count(*) FROM tracks" | tr -d '[:space:]')
-docker compose exec -T db psql -U dms -d postgres -qc "DROP DATABASE IF EXISTS dms_restore_check" >/dev/null
+docker compose exec -T db psql -U dms -d postgres -qc "DROP DATABASE IF EXISTS dms_restore_check" >/dev/null 2>&1
 docker compose exec -T db psql -U dms -d postgres -qc "CREATE DATABASE dms_restore_check" >/dev/null || fail "مقدرش يعمل قاعدة اختبار"
 if ! $T 1800 docker compose exec -T db pg_restore -U dms -d dms_restore_check --no-owner < "$DUMP.part" >/dev/null 2>"$PROJECT/.restore-check.err"; then
-  docker compose exec -T db psql -U dms -d postgres -qc "DROP DATABASE IF EXISTS dms_restore_check" >/dev/null
+  docker compose exec -T db psql -U dms -d postgres -qc "DROP DATABASE IF EXISTS dms_restore_check" >/dev/null 2>&1
   fail "تجربة استرجاع النسخة فشلت: $(tail -1 "$PROJECT/.restore-check.err")"
 fi
 TRACKS=$(docker compose exec -T db psql -U dms -d dms_restore_check -tAc "SELECT count(*) FROM tracks" | tr -d '[:space:]')
-docker compose exec -T db psql -U dms -d postgres -qc "DROP DATABASE IF EXISTS dms_restore_check" >/dev/null
+docker compose exec -T db psql -U dms -d postgres -qc "DROP DATABASE IF EXISTS dms_restore_check" >/dev/null 2>&1
 rm -f "$PROJECT/.restore-check.err"
 # Songs may be added while the dump runs, so the copy can only be equal or a little behind.
 [ -n "$TRACKS" ] && [ "$TRACKS" -le "${TRACKS_LIVE:-0}" ] && [ "$TRACKS" -ge $(( ${TRACKS_LIVE:-0} - 50 )) ] \
